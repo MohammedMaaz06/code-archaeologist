@@ -28,16 +28,17 @@
 ## Day 7 — 2026-09-21
 - Built `LLMService` integration supporting local/remote LLM prompt generation with fallback context summarization.
 - Implemented `/api/v1/llm/explain` and `/api/v1/llm/refactor-risk` endpoints.
-- Expanded test suite to 12 total passing tests across all services and endpoints.
+
+## Day 8 — 2026-09-21
+- Created full E2E pipeline integration test suite (`test_e2e_pipeline.py`).
+- Verified all 13 test cases across the system (scanning, AST parsing, graph topology, vector indexing, context synthesis, and LLM explanation).
 
 ### Files Created/Modified
-- `backend/app/services/llm_service.py`
-- `backend/app/api/v1/llm.py`
-- `backend/app/main.py`
-- `backend/tests/test_llm_service.py`
+- `backend/tests/test_e2e_pipeline.py`
+- `docs/DEVELOPMENT_LOG.md`
 
 ### Tests
-- `pytest backend/tests` (Passed)
+- `pytest backend/tests` (Passed - 13/13)
 
 ### Git Commit
-- `feat: implement LLM synthesis service, natural language explainer, and refactor risk endpoints`
+- `test: add comprehensive end-to-end integration test suite for code archaeology pipeline`
