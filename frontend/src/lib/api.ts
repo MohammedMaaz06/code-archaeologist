@@ -43,6 +43,21 @@ export interface BuildGraphResponse {
   edges: GraphEdgeResponse[];
 }
 
+export interface IndexRepoRequest {
+  repo_path: string;
+  chunk_size?: number;
+  chunk_overlap?: number;
+  file_extensions?: string[];
+}
+
+export interface IndexRepoResponse {
+  status: string;
+  indexed_files: number;
+  total_chunks: number;
+  total_symbols: number;
+  collection_name: string;
+}
+
 async function fetchAPI<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`${API_BASE_URL}${endpoint}`, {
     headers: {
@@ -89,5 +104,11 @@ export const api = {
     fetchAPI<ExplanationResponse>("/llm/explain", {
       method: "POST",
       body: JSON.stringify({ query, top_k: topK }),
+    }),
+
+  indexRepo: (params: IndexRepoRequest) =>
+    fetchAPI<IndexRepoResponse>("/index/repo", {
+      method: "POST",
+      body: JSON.stringify(params),
     }),
 };

@@ -1,5 +1,6 @@
 ﻿import ArcheologySearch from "@/components/ArcheologySearch";
 import KnowledgeGraph from "@/components/KnowledgeGraph";
+import RepoIndexer from "@/components/RepoIndexer";
 
 export default function Home() {
   return (
@@ -14,6 +15,7 @@ export default function Home() {
           </p>
         </header>
 
+        <RepoIndexer />
         <KnowledgeGraph />
         <ArcheologySearch />
       </div>
