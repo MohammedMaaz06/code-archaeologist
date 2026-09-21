@@ -11,27 +11,30 @@
 - Set up Docker environment with PostgreSQL + pgvector and backend Dockerfile.
 - Built test suite using `pytest` and `httpx` to verify backend bootstrap.
 
+## Day 2 — 2026-09-21
+
+### Completed
+- Built SQLAlchemy models (`Repository`, `FileIndex`) for domain metadata persistence.
+- Implemented `RepoScanner` service to safely traverse target repositories, respect `.gitignore` patterns, filter out binaries/vendor dirs, count LOC, and hash contents.
+- Implemented `GitService` to interrogate native local Git CLI for branch, head commit, and commit metadata.
+- Implemented `/api/v1/repositories/scan` and `/api/v1/repositories/{id}` REST endpoints.
+- Built test suite for scanner logic, file hashing, language detection, and API routes.
+
 ### Files Created/Modified
+- `backend/app/models/repository.py`
+- `backend/app/models/__init__.py`
+- `backend/app/services/git_service.py`
+- `backend/app/services/repo_scanner.py`
+- `backend/app/api/v1/repositories.py`
 - `backend/app/main.py`
-- `backend/app/core/config.py`
-- `backend/app/core/logging.py`
-- `backend/app/api/v1/health.py`
-- `backend/app/db/session.py`
-- `backend/requirements.txt`
-- `backend/pytest.ini`
-- `backend/tests/conftest.py`
-- `backend/tests/test_health.py`
-- `backend/Dockerfile`
-- `docker-compose.yml`
-- `.env.example`
-- `.gitignore`
-- `README.md`
+- `backend/tests/test_repo_scanner.py`
+- `backend/tests/test_repositories_api.py`
 
 ### Tests
-- `pytest backend/tests/test_health.py` (Passed)
+- `pytest backend/tests` (Passed)
 
 ### Git Commit
-- `feat: initialize backend service foundation, configuration, and health endpoints`
+- `feat: implement repository ingestion engine, file scanner, git service, and index endpoints`
 
 ### Next Step
-- Phase 2: Repository Ingestion Engine (scanner, file indexing, language detection, Git detection).
+- Phase 3: AST Analysis Engine (Python AST & Tree-sitter for JS/TS symbol & call extraction).
