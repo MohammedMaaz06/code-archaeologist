@@ -24,16 +24,20 @@
 - Implemented `ArcheologyEngine` combining vector chunk search with graph dependency traversal for context synthesis.
 - Built file impact & blast radius calculation engine.
 - Added `/api/v1/archeology/investigate` and `/api/v1/archeology/impact` API endpoints.
-- Expanded test suite validating full hybrid context synthesis and risk level calculations.
+
+## Day 7 — 2026-09-21
+- Built `LLMService` integration supporting local/remote LLM prompt generation with fallback context summarization.
+- Implemented `/api/v1/llm/explain` and `/api/v1/llm/refactor-risk` endpoints.
+- Expanded test suite to 12 total passing tests across all services and endpoints.
 
 ### Files Created/Modified
-- `backend/app/services/archeology_service.py`
-- `backend/app/api/v1/archeology.py`
+- `backend/app/services/llm_service.py`
+- `backend/app/api/v1/llm.py`
 - `backend/app/main.py`
-- `backend/tests/test_archeology_service.py`
+- `backend/tests/test_llm_service.py`
 
 ### Tests
 - `pytest backend/tests` (Passed)
 
 ### Git Commit
-- `feat: implement ArcheologyEngine context synthesis and blast radius impact analysis`
+- `feat: implement LLM synthesis service, natural language explainer, and refactor risk endpoints`
