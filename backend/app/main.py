@@ -32,6 +32,21 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+from fastapi.middleware.cors import CORSMiddleware
+
+origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.include_router(health_router, prefix=settings.API_V1_STR, tags=["Health"])
 app.include_router(repositories_router, prefix=f"{settings.API_V1_STR}/repositories", tags=["Repositories"])
 app.include_router(symbols_router, prefix=f"{settings.API_V1_STR}/symbols", tags=["Symbols"])
