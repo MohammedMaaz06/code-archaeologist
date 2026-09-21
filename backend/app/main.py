@@ -5,6 +5,7 @@ from app.api.v1.health import router as health_router
 from app.api.v1.repositories import router as repositories_router
 from app.api.v1.symbols import router as symbols_router
 from app.api.v1.graph import router as graph_router
+from app.api.v1.search import router as search_router
 from app.core.config import settings
 from app.core.logging import logger, setup_logging
 
@@ -33,6 +34,7 @@ app.include_router(health_router, prefix=settings.API_V1_STR, tags=["Health"])
 app.include_router(repositories_router, prefix=f"{settings.API_V1_STR}/repositories", tags=["Repositories"])
 app.include_router(symbols_router, prefix=f"{settings.API_V1_STR}/symbols", tags=["Symbols"])
 app.include_router(graph_router, prefix=f"{settings.API_V1_STR}/graph", tags=["Graph"])
+app.include_router(search_router, prefix=f"{settings.API_V1_STR}/search", tags=["Search"])
 
 
 @app.get("/")
