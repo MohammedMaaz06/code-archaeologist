@@ -3,8 +3,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import cytoscape, { Core, NodeSingular } from "cytoscape";
 import dagre from "cytoscape-dagre";
+import { api, GraphNodeResponse, GraphEdgeResponse } from "@/lib/api";
 
-// Register layout extension
 if (typeof window !== "undefined") {
   cytoscape.use(dagre);
 }
@@ -23,40 +23,73 @@ export interface GraphEdge {
   relationship: "calls" | "imports" | "inherits" | "contains";
 }
 
-interface KnowledgeGraphProps {
-  nodes?: GraphNode[];
-  edges?: GraphEdge[];
-}
-
-const defaultNodes: GraphNode[] = [
+const fallbackNodes: GraphNode[] = [
   { id: "app/main.py", label: "main.py", type: "module" },
   { id: "ArcheologyService", label: "ArcheologyService", type: "class", filePath: "app/services/archeology.py" },
   { id: "investigate", label: "investigate()", type: "function", filePath: "app/services/archeology.py" },
   { id: "ASTAnalyzer", label: "ASTAnalyzer", type: "class", filePath: "app/analyzer/ast.py" },
-  { id: "extract_symbols", label: "extract_symbols()", type: "function", filePath: "app/analyzer/ast.py" },
-  { id: "VectorSearchIndex", label: "VectorSearchIndex", type: "class", filePath: "app/search/vector.py" },
 ];
 
-const defaultEdges: GraphEdge[] = [
+const fallbackEdges: GraphEdge[] = [
   { id: "e1", source: "app/main.py", target: "ArcheologyService", relationship: "imports" },
   { id: "e2", source: "ArcheologyService", target: "investigate", relationship: "contains" },
   { id: "e3", source: "investigate", target: "ASTAnalyzer", relationship: "calls" },
-  { id: "e4", source: "ASTAnalyzer", target: "extract_symbols", relationship: "contains" },
-  { id: "e5", source: "investigate", target: "VectorSearchIndex", relationship: "calls" },
 ];
 
 const NODE_COLORS: Record<string, string> = {
-  module: "#3b82f6",     // blue
-  class: "#8b5cf6",      // purple
-  function: "#10b981",   // green
-  variable: "#f59e0b",   // amber
+  module: "#3b82f6",
+  class: "#8b5cf6",
+  function: "#10b981",
+  variable: "#f59e0b",
 };
 
-export default function KnowledgeGraph({ nodes = defaultNodes, edges = defaultEdges }: KnowledgeGraphProps) {
+export default function KnowledgeGraph() {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<Core | null>(null);
+
+  const [nodes, setNodes] = useState<GraphNode[]>(fallbackNodes);
+  const [edges, setEdges] = useState<GraphEdge[]>(fallbackEdges);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [filterType, setFilterType] = useState<string>("all");
+
+  const loadGraphData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await api.buildGraph([], []);
+      if (response.nodes && response.nodes.length > 0) {
+        setNodes(
+          response.nodes.map((n: GraphNodeResponse) => ({
+            id: n.id,
+            label: n.label,
+            type: n.type,
+            filePath: n.file_path,
+          }))
+        );
+      }
+      if (response.edges && response.edges.length > 0) {
+        setEdges(
+          response.edges.map((e: GraphEdgeResponse) => ({
+            id: e.id,
+            source: e.source,
+            target: e.target,
+            relationship: e.relationship,
+          }))
+        );
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load live graph.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadGraphData();
+  }, []);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -154,15 +187,24 @@ export default function KnowledgeGraph({ nodes = defaultNodes, edges = defaultEd
 
   return (
     <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4 space-y-4">
-      {/* Header Controls */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3">
         <div className="flex items-center gap-2">
           <h3 className="font-bold text-slate-800">Knowledge Graph</h3>
-          <span className="text-xs text-slate-500">({nodes.length} symbols, {edges.length} links)</span>
+          <span className="text-xs text-slate-500">
+            ({nodes.length} symbols, {edges.length} links)
+          </span>
+          {loading && <span className="text-xs text-blue-600 animate-pulse">Syncing...</span>}
         </div>
 
-        {/* Filter Toolbar */}
         <div className="flex items-center gap-2">
+          <button
+            onClick={loadGraphData}
+            disabled={loading}
+            className="text-xs px-2.5 py-1 bg-slate-100 border border-slate-300 text-slate-700 rounded hover:bg-slate-200 disabled:opacity-50"
+          >
+            {loading ? "Loading..." : "Refresh Graph"}
+          </button>
+
           <label className="text-xs text-slate-600 font-medium">Filter:</label>
           <select
             value={filterType}
@@ -183,11 +225,15 @@ export default function KnowledgeGraph({ nodes = defaultNodes, edges = defaultEd
         </div>
       </div>
 
-      {/* Canvas Area */}
+      {error && (
+        <div className="p-2 text-xs bg-amber-50 border border-amber-200 text-amber-700 rounded">
+          {error} (Displaying local fallback nodes)
+        </div>
+      )}
+
       <div className="relative w-full h-[450px] bg-slate-50 rounded-lg overflow-hidden border border-slate-200">
         <div ref={containerRef} className="w-full h-full" />
 
-        {/* Sidebar Info Drawer */}
         {selectedNode && (
           <div className="absolute top-3 right-3 w-64 bg-white/95 backdrop-blur p-4 rounded-lg shadow-lg border border-slate-200 space-y-2 text-xs">
             <div className="flex justify-between items-start">
@@ -204,7 +250,6 @@ export default function KnowledgeGraph({ nodes = defaultNodes, edges = defaultEd
         )}
       </div>
 
-      {/* Legend */}
       <div className="flex items-center gap-4 text-xs text-slate-600">
         <span className="font-medium">Legend:</span>
         <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-blue-500"></span> Module</div>
