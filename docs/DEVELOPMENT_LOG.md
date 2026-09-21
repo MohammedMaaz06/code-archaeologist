@@ -19,17 +19,21 @@
 - Built `CodeChunker` for syntax-aware AST symbol code chunking.
 - Implemented `VectorSearchService` local vector space indexing with TF-IDF cosine similarity search.
 - Added `/api/v1/search/index` and `/api/v1/search/query` endpoints.
-- Expanded test suite to verify AST chunking boundaries, tokenization, and vector search matching.
+
+## Day 6 — 2026-09-21
+- Implemented `ArcheologyEngine` combining vector chunk search with graph dependency traversal for context synthesis.
+- Built file impact & blast radius calculation engine.
+- Added `/api/v1/archeology/investigate` and `/api/v1/archeology/impact` API endpoints.
+- Expanded test suite validating full hybrid context synthesis and risk level calculations.
 
 ### Files Created/Modified
-- `backend/app/services/chunker_service.py`
-- `backend/app/services/vector_service.py`
-- `backend/app/api/v1/search.py`
+- `backend/app/services/archeology_service.py`
+- `backend/app/api/v1/archeology.py`
 - `backend/app/main.py`
-- `backend/tests/test_vector_search.py`
+- `backend/tests/test_archeology_service.py`
 
 ### Tests
 - `pytest backend/tests` (Passed)
 
 ### Git Commit
-- `feat: implement syntax-aware code chunker, vector search service, and query endpoints`
+- `feat: implement ArcheologyEngine context synthesis and blast radius impact analysis`
