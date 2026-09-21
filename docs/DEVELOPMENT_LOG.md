@@ -10,20 +10,20 @@
 - Created AST static analysis engines (`PythonASTAnalyzer` and `JSTSAnalyzer`).
 - Implemented symbol domain model (`SymbolIndex`) capturing classes, functions, methods, line ranges, signatures, and call expressions.
 - Added `/api/v1/symbols/extract` API endpoint.
-- Extended test suite covering Python AST parsing and JS/TS structure analysis.
+
+## Day 4 — 2026-09-21
+- Implemented NetworkX directed graph service (`DependencyGraphService`) for mapping repository file and symbol dependencies.
+- Added `/api/v1/graph/build`, `/api/v1/graph/metrics`, and `/api/v1/graph/dependencies` endpoints.
+- Built test suite validating node topology, edge creation, in-degree metrics, and path queries.
 
 ### Files Created/Modified
-- `backend/app/models/symbol.py`
-- `backend/app/models/__init__.py`
-- `backend/app/analyzers/python_analyzer.py`
-- `backend/app/analyzers/js_analyzer.py`
-- `backend/app/analyzers/__init__.py`
-- `backend/app/api/v1/symbols.py`
+- `backend/app/services/graph_service.py`
+- `backend/app/api/v1/graph.py`
 - `backend/app/main.py`
-- `backend/tests/test_ast_analyzer.py`
+- `backend/tests/test_graph_service.py`
 
 ### Tests
 - `pytest backend/tests` (Passed)
 
 ### Git Commit
-- `feat: add python AST and JS/TS static symbol extraction analyzers`
+- `feat: implement NetworkX dependency graph service and structural metrics endpoints`
