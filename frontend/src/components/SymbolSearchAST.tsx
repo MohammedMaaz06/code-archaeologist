@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 
 export interface ASTNode {
   id: string;
@@ -15,20 +15,47 @@ export interface ASTNode {
 }
 
 interface SymbolSearchASTProps {
-  astData?: ASTNode[];
+  initialAstData?: ASTNode[];
   onSelectSymbol?: (symbol: ASTNode) => void;
 }
 
 export default function SymbolSearchAST({
-  astData = [],
+  initialAstData = [],
   onSelectSymbol,
 }: SymbolSearchASTProps) {
+  const [astData, setAstData] = useState<ASTNode[]>(initialAstData);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+
   const [query, setQuery] = useState("");
   const [selectedKind, setSelectedKind] = useState<string>("all");
   const [selectedSymbol, setSelectedSymbol] = useState<ASTNode | null>(null);
   const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>({});
 
-  // Flatten tree for flat search view
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+  useEffect(() => {
+    const fetchASTData = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch(`${API_URL}/api/ast`);
+        if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+        const data = await res.json();
+        if (data.symbols) {
+          setAstData(data.symbols);
+        }
+      } catch (err: any) {
+        console.warn("Failed to fetch live AST data, falling back to local state:", err.message);
+        setError("Live AST API unavailable. Showing local/cached state.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchASTData();
+  }, [API_URL]);
+
   const flattenedSymbols = useMemo(() => {
     const list: ASTNode[] = [];
     const traverse = (nodes: ASTNode[]) => {
@@ -43,7 +70,6 @@ export default function SymbolSearchAST({
     return list;
   }, [astData]);
 
-  // Filter symbols based on search query and kind pill
   const filteredSymbols = useMemo(() => {
     return flattenedSymbols.filter((sym) => {
       const matchesQuery =
@@ -144,19 +170,32 @@ export default function SymbolSearchAST({
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-xl space-y-4">
       {/* Header */}
-      <div className="border-b border-slate-800 pb-3 flex justify-between items-center">
+      <div className="border-b border-slate-800 pb-3 flex flex-col sm:flex-row justify-between sm:items-center gap-2">
         <div>
           <h3 className="font-bold text-slate-100 text-base flex items-center gap-2">
             <span>🔍</span> Deep Symbol Search & AST Hierarchy
           </h3>
           <p className="text-xs text-slate-400 mt-0.5">
-            Inspect scope hierarchies, methods, classes, and AST trees across indexed code files.
+            Inspect scope hierarchies, methods, classes, and AST trees dynamically from backend parsing.
           </p>
         </div>
-        <span className="text-xs font-mono bg-slate-950 border border-slate-800 px-2.5 py-1 rounded-md text-slate-400">
-          {filteredSymbols.length} / {flattenedSymbols.length} symbols
-        </span>
+        <div className="flex items-center gap-2">
+          {loading && (
+            <span className="text-xs text-blue-400 animate-pulse font-mono flex items-center gap-1">
+              <span className="inline-block w-2 h-2 bg-blue-400 rounded-full animate-ping" /> Loading AST...
+            </span>
+          )}
+          <span className="text-xs font-mono bg-slate-950 border border-slate-800 px-2.5 py-1 rounded-md text-slate-400">
+            {filteredSymbols.length} / {flattenedSymbols.length} symbols
+          </span>
+        </div>
       </div>
+
+      {error && (
+        <div className="text-xs bg-amber-500/10 border border-amber-500/30 text-amber-300 px-3 py-1.5 rounded-lg">
+          {error}
+        </div>
+      )}
 
       {/* Search Bar & Kind Filters */}
       <div className="space-y-2.5">
@@ -189,14 +228,14 @@ export default function SymbolSearchAST({
 
       {/* Split Inspector Workspace */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 pt-2">
-        {/* Left Panel: AST Hierarchy / Search Results */}
+        {/* Left Panel */}
         <div className="lg:col-span-7 bg-slate-950 border border-slate-800/80 rounded-lg p-3 h-[420px] overflow-y-auto">
           {query.trim() === "" && selectedKind === "all" ? (
             astData.length > 0 ? (
               renderTree(astData)
             ) : (
               <div className="text-xs text-slate-500 text-center py-12">
-                No AST nodes indexed yet. Run repository indexing to populate symbol tree.
+                No AST nodes returned from backend. Run repository indexing first.
               </div>
             )
           ) : filteredSymbols.length > 0 ? (
@@ -239,7 +278,7 @@ export default function SymbolSearchAST({
           )}
         </div>
 
-        {/* Right Panel: Selected Symbol Detail Inspector */}
+        {/* Right Panel */}
         <div className="lg:col-span-5 bg-slate-950 border border-slate-800/80 rounded-lg p-4 h-[420px] overflow-y-auto flex flex-col justify-between">
           {selectedSymbol ? (
             <div className="space-y-3 text-xs text-slate-300">
