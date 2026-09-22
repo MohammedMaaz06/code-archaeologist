@@ -1,161 +1,95 @@
 ﻿"use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import cytoscape, { Core, NodeSingular } from "cytoscape";
-import dagre from "cytoscape-dagre";
-import { api, GraphNodeResponse, GraphEdgeResponse } from "@/lib/api";
+import cytoscape, { Core } from "cytoscape";
 
-if (typeof window !== "undefined") {
-  cytoscape.use(dagre);
-}
-
-export interface GraphNode {
+interface GraphNode {
   id: string;
   label: string;
-  type: "function" | "class" | "module" | "variable";
+  type: string;
   filePath?: string;
 }
 
-export interface GraphEdge {
-  id: string;
+interface GraphEdge {
   source: string;
   target: string;
-  relationship: "calls" | "imports" | "inherits" | "contains";
+  relation: string;
 }
 
-const fallbackNodes: GraphNode[] = [
-  { id: "app/main.py", label: "main.py", type: "module" },
-  { id: "ArcheologyService", label: "ArcheologyService", type: "class", filePath: "app/services/archeology.py" },
-  { id: "investigate", label: "investigate()", type: "function", filePath: "app/services/archeology.py" },
-  { id: "ASTAnalyzer", label: "ASTAnalyzer", type: "class", filePath: "app/analyzer/ast.py" },
-];
+interface KnowledgeGraphProps {
+  nodes?: GraphNode[];
+  edges?: GraphEdge[];
+}
 
-const fallbackEdges: GraphEdge[] = [
-  { id: "e1", source: "app/main.py", target: "ArcheologyService", relationship: "imports" },
-  { id: "e2", source: "ArcheologyService", target: "investigate", relationship: "contains" },
-  { id: "e3", source: "investigate", target: "ASTAnalyzer", relationship: "calls" },
-];
-
-const NODE_COLORS: Record<string, string> = {
-  module: "#3b82f6",
-  class: "#8b5cf6",
-  function: "#10b981",
-  variable: "#f59e0b",
-};
-
-export default function KnowledgeGraph() {
+export default function KnowledgeGraph({ nodes = [], edges = [] }: KnowledgeGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<Core | null>(null);
-
-  const [nodes, setNodes] = useState<GraphNode[]>(fallbackNodes);
-  const [edges, setEdges] = useState<GraphEdge[]>(fallbackEdges);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
-
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
-  const [filterType, setFilterType] = useState<string>("all");
-
-  const loadGraphData = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await api.buildGraph([], []);
-      if (response.nodes && response.nodes.length > 0) {
-        setNodes(
-          response.nodes.map((n: GraphNodeResponse) => ({
-            id: n.id,
-            label: n.label,
-            type: n.type,
-            filePath: n.file_path,
-          }))
-        );
-      }
-      if (response.edges && response.edges.length > 0) {
-        setEdges(
-          response.edges.map((e: GraphEdgeResponse) => ({
-            id: e.id,
-            source: e.source,
-            target: e.target,
-            relationship: e.relationship,
-          }))
-        );
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load live graph.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadGraphData();
-  }, []);
 
   useEffect(() => {
     if (!containerRef.current) return;
 
-    const filteredNodes = filterType === "all" ? nodes : nodes.filter((n) => n.type === filterType);
-    const validNodeIds = new Set(filteredNodes.map((n) => n.id));
-    const filteredEdges = edges.filter((e) => validNodeIds.has(e.source) && validNodeIds.has(e.target));
+    const elements = [
+      ...nodes.map((n) => ({
+        data: { id: n.id, label: n.label, type: n.type, filePath: n.filePath },
+      })),
+      ...edges.map((e, idx) => ({
+        data: {
+          id: `edge-${idx}`,
+          source: e.source,
+          target: e.target,
+          label: e.relation,
+        },
+      })),
+    ];
 
     const cy = cytoscape({
       container: containerRef.current,
-      elements: [
-        ...filteredNodes.map((n) => ({
-          data: { id: n.id, label: n.label, type: n.type, filePath: n.filePath || "" },
-        })),
-        ...filteredEdges.map((e) => ({
-          data: { id: e.id, source: e.source, target: e.target, relationship: e.relationship },
-        })),
-      ],
+      elements,
       style: [
         {
           selector: "node",
           style: {
+            "background-color": "#3b82f6",
             label: "data(label)",
-            "background-color": (ele: NodeSingular) => NODE_COLORS[ele.data("type")] || "#64748b",
-            color: "#0f172a",
-            "font-size": "12px",
-            "font-weight": "bold",
+            color: "#f8fafc",
+            "font-size": "10px",
             "text-valign": "bottom",
-            "text-margin-y": 5,
-            width: 32,
-            height: 32,
-            "border-width": 2,
-            "border-color": "#ffffff",
+            "text-margin-y": 4,
+            width: 24,
+            height: 24,
           },
         },
         {
-          selector: "node:selected",
-          style: {
-            "border-width": 4,
-            "border-color": "#2563eb",
-            width: 38,
-            height: 38,
-          },
+          selector: 'node[type = "file"]',
+          style: { "background-color": "#10b981", width: 28, height: 28 },
+        },
+        {
+          selector: 'node[type = "function"]',
+          style: { "background-color": "#6366f1" },
+        },
+        {
+          selector: 'node[type = "class"]',
+          style: { "background-color": "#f59e0b" },
         },
         {
           selector: "edge",
           style: {
-            width: 2,
-            "line-color": "#cbd5e1",
-            "target-arrow-color": "#cbd5e1",
+            width: 1.5,
+            "line-color": "#475569",
+            "target-arrow-color": "#475569",
             "target-arrow-shape": "triangle",
             "curve-style": "bezier",
-            label: "data(relationship)",
-            "font-size": "9px",
+            label: "data(label)",
             color: "#64748b",
-            "text-background-color": "#ffffff",
-            "text-background-opacity": 0.8,
-            "text-background-padding": "2px",
+            "font-size": "8px",
           },
         },
       ],
       layout: {
-        name: "dagre",
-        rankDir: "TB",
-        padding: 30,
-      } as unknown as cytoscape.LayoutOptions,
+        name: "cose",
+        animate: true,
+      },
     });
 
     cy.on("tap", "node", (evt) => {
@@ -168,93 +102,89 @@ export default function KnowledgeGraph() {
       });
     });
 
-    cy.on("tap", (evt) => {
-      if (evt.target === cy) {
-        setSelectedNode(null);
-      }
-    });
-
     cyRef.current = cy;
 
     return () => {
       cy.destroy();
     };
-  }, [nodes, edges, filterType]);
+  }, [nodes, edges]);
 
-  const handleZoomIn = () => cyRef.current?.zoom(cyRef.current.zoom() * 1.2);
-  const handleZoomOut = () => cyRef.current?.zoom(cyRef.current.zoom() * 0.8);
-  const handleFit = () => cyRef.current?.fit(undefined, 30);
+  const exportPNG = () => {
+    if (!cyRef.current) return;
+    const pngBase64 = cyRef.current.png({ bg: "#0f172a", full: true, scale: 2 });
+    const link = document.createElement("a");
+    link.href = pngBase64;
+    link.download = `knowledge-graph-${Date.now()}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const exportJSON = () => {
+    if (!cyRef.current) return;
+    const graphData = {
+      nodes,
+      edges,
+      exportedAt: new Date().toISOString(),
+    };
+    const blob = new Blob([JSON.stringify(graphData, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `knowledge-graph-${Date.now()}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4 space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3">
-        <div className="flex items-center gap-2">
-          <h3 className="font-bold text-slate-800">Knowledge Graph</h3>
-          <span className="text-xs text-slate-500">
-            ({nodes.length} symbols, {edges.length} links)
-          </span>
-          {loading && <span className="text-xs text-blue-600 animate-pulse">Syncing...</span>}
+    <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl flex flex-col gap-4">
+      <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+        <div>
+          <h3 className="font-bold text-slate-100 text-base flex items-center gap-2">
+            <span>🕸️</span> Codebase Architecture Knowledge Graph
+          </h3>
+          <p className="text-xs text-slate-400">Visual AST & Symbol Dependency Topology</p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex gap-2">
           <button
-            onClick={loadGraphData}
-            disabled={loading}
-            className="text-xs px-2.5 py-1 bg-slate-100 border border-slate-300 text-slate-700 rounded hover:bg-slate-200 disabled:opacity-50"
+            onClick={exportPNG}
+            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5"
           >
-            {loading ? "Loading..." : "Refresh Graph"}
+            <span>📷</span> Export PNG
           </button>
-
-          <label className="text-xs text-slate-600 font-medium">Filter:</label>
-          <select
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value)}
-            className="text-xs px-2 py-1 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500"
+          <button
+            onClick={exportJSON}
+            className="px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/50 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5"
           >
-            <option value="all">All Types</option>
-            <option value="module">Modules</option>
-            <option value="class">Classes</option>
-            <option value="function">Functions</option>
-          </select>
-
-          <div className="flex items-center gap-1 ml-2">
-            <button onClick={handleZoomIn} className="px-2 py-1 bg-slate-100 text-xs rounded hover:bg-slate-200 font-mono">+</button>
-            <button onClick={handleZoomOut} className="px-2 py-1 bg-slate-100 text-xs rounded hover:bg-slate-200 font-mono">-</button>
-            <button onClick={handleFit} className="px-2 py-1 bg-slate-100 text-xs rounded hover:bg-slate-200">Fit</button>
-          </div>
+            <span>💾</span> Export JSON
+          </button>
         </div>
       </div>
 
-      {error && (
-        <div className="p-2 text-xs bg-amber-50 border border-amber-200 text-amber-700 rounded">
-          {error} (Displaying local fallback nodes)
-        </div>
-      )}
-
-      <div className="relative w-full h-[450px] bg-slate-50 rounded-lg overflow-hidden border border-slate-200">
-        <div ref={containerRef} className="w-full h-full" />
+      <div className="relative">
+        <div ref={containerRef} className="w-full h-[450px] bg-slate-950 rounded-lg border border-slate-800/80" />
 
         {selectedNode && (
-          <div className="absolute top-3 right-3 w-64 bg-white/95 backdrop-blur p-4 rounded-lg shadow-lg border border-slate-200 space-y-2 text-xs">
-            <div className="flex justify-between items-start">
-              <span className="font-semibold text-slate-800 text-sm">{selectedNode.label}</span>
-              <button onClick={() => setSelectedNode(null)} className="text-slate-400 hover:text-slate-600 font-bold">✕</button>
+          <div className="absolute top-3 right-3 bg-slate-900/95 border border-slate-700 rounded-lg p-3 text-xs text-slate-200 shadow-lg backdrop-blur-sm max-w-xs space-y-1">
+            <div className="font-bold text-blue-400 border-b border-slate-800 pb-1 mb-1 flex justify-between items-center">
+              <span>Node Inspector</span>
+              <button
+                onClick={() => setSelectedNode(null)}
+                className="text-slate-500 hover:text-slate-300"
+              >
+                ✕
+              </button>
             </div>
-            <div className="space-y-1 text-slate-600">
-              <p><strong className="text-slate-700">Type:</strong> <span className="capitalize">{selectedNode.type}</span></p>
-              {selectedNode.filePath && (
-                <p className="font-mono text-[11px] text-blue-600 truncate"><strong className="text-slate-700">File:</strong> {selectedNode.filePath}</p>
-              )}
-            </div>
+            <div><strong>ID:</strong> {selectedNode.id}</div>
+            <div><strong>Type:</strong> <span className="uppercase text-[10px] bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">{selectedNode.type}</span></div>
+            {selectedNode.filePath && (
+              <div className="truncate"><strong>Path:</strong> <span className="font-mono text-slate-400">{selectedNode.filePath}</span></div>
+            )}
           </div>
         )}
-      </div>
-
-      <div className="flex items-center gap-4 text-xs text-slate-600">
-        <span className="font-medium">Legend:</span>
-        <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-blue-500"></span> Module</div>
-        <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-purple-500"></span> Class</div>
-        <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-emerald-500"></span> Function</div>
       </div>
     </div>
   );
