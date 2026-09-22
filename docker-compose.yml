@@ -1,47 +1,30 @@
-version: '3.8'
+﻿version: '3.8'
 
 services:
-  db:
-    image: pgvector/pgvector:pg16
-    container_name: archaeologist_db
-    restart: always
-    environment:
-      POSTGRES_USER: archaeologist
-      POSTGRES_PASSWORD: archaeologist_secret
-      POSTGRES_DB: code_archaeologist
-    ports:
-      - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U archaeologist -d code_archaeologist"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: archaeologist_backend
-    restart: always
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-    volumes:
-      - ./backend:/app
+    container_name: code-archaeologist-backend
     ports:
       - "8000:8000"
     environment:
-      - ENVIRONMENT=development
-      - DEBUG=true
-      - POSTGRES_SERVER=db
-      - POSTGRES_PORT=5432
-      - POSTGRES_USER=archaeologist
-      - POSTGRES_PASSWORD=archaeologist_secret
-      - POSTGRES_DB=code_archaeologist
-      - DATABASE_URL=postgresql+asyncpg://archaeologist:archaeologist_secret@db:5432/code_archaeologist
-    depends_on:
-      db:
-        condition: service_healthy
+      - HOST=0.0.0.0
+      - PORT=8000
+    volumes:
+      - ./backend:/app
+    restart: unless-stopped
 
-volumes:
-  pgdata:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: code-archaeologist-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_WS_URL=ws://localhost:8000/ws/index-progress
+    depends_on:
+      - backend
+    restart: unless-stopped

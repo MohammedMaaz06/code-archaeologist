@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useMemo } from "react";
 import cytoscape, { Core } from "cytoscape";
 
 interface GraphNode {
@@ -24,16 +24,39 @@ interface KnowledgeGraphProps {
 export default function KnowledgeGraph({ nodes = [], edges = [] }: KnowledgeGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<Core | null>(null);
+  
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [selectedType, setSelectedType] = useState<string>("all");
+
+  const availableTypes = useMemo(() => {
+    const types = new Set(nodes.map((n) => n.type.toLowerCase()));
+    return ["all", ...Array.from(types)];
+  }, [nodes]);
 
   useEffect(() => {
     if (!containerRef.current) return;
 
+    const filteredNodes = nodes.filter((n) => {
+      const matchesSearch = searchQuery === "" || 
+        n.label.toLowerCase().includes(searchQuery.toLowerCase()) || 
+        n.id.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      const matchesType = selectedType === "all" || n.type.toLowerCase() === selectedType.toLowerCase();
+      
+      return matchesSearch && matchesType;
+    });
+
+    const validNodeIds = new Set(filteredNodes.map((n) => n.id));
+    const filteredEdges = edges.filter(
+      (e) => validNodeIds.has(e.source) && validNodeIds.has(e.target)
+    );
+
     const elements = [
-      ...nodes.map((n) => ({
+      ...filteredNodes.map((n) => ({
         data: { id: n.id, label: n.label, type: n.type, filePath: n.filePath },
       })),
-      ...edges.map((e, idx) => ({
+      ...filteredEdges.map((e, idx) => ({
         data: {
           id: `edge-${idx}`,
           source: e.source,
@@ -107,7 +130,7 @@ export default function KnowledgeGraph({ nodes = [], edges = [] }: KnowledgeGrap
     return () => {
       cy.destroy();
     };
-  }, [nodes, edges]);
+  }, [nodes, edges, searchQuery, selectedType]);
 
   const exportPNG = () => {
     if (!cyRef.current) return;
@@ -140,7 +163,8 @@ export default function KnowledgeGraph({ nodes = [], edges = [] }: KnowledgeGrap
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl flex flex-col gap-4">
-      <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+      {/* Header & Export Controls */}
+      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 border-b border-slate-800 pb-3">
         <div>
           <h3 className="font-bold text-slate-100 text-base flex items-center gap-2">
             <span>🕸️</span> Codebase Architecture Knowledge Graph
@@ -164,6 +188,47 @@ export default function KnowledgeGraph({ nodes = [], edges = [] }: KnowledgeGrap
         </div>
       </div>
 
+      {/* Search & Filter Bar */}
+      <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+        <div className="relative flex-1">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="🔍 Search symbols, classes, files..."
+            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute right-2.5 top-1.5 text-xs text-slate-500 hover:text-slate-300"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+
+        <div className="flex flex-wrap gap-1.5 items-center">
+          {availableTypes.map((type) => {
+            const active = selectedType.toLowerCase() === type.toLowerCase();
+            return (
+              <button
+                key={type}
+                onClick={() => setSelectedType(type)}
+                className={`text-[11px] px-2.5 py-1 rounded-md border capitalize font-mono transition-colors ${
+                  active
+                    ? "bg-blue-600/20 border-blue-500 text-blue-300 font-semibold"
+                    : "bg-slate-950 border-slate-800 text-slate-400 hover:bg-slate-800"
+                }`}
+              >
+                {type}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Graph Display Area */}
       <div className="relative">
         <div ref={containerRef} className="w-full h-[450px] bg-slate-950 rounded-lg border border-slate-800/80" />
 
