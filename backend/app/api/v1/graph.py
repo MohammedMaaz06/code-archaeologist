@@ -1,71 +1,32 @@
-from typing import Dict, List, Any
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
-from app.services.graph_service import DependencyGraphService
+from fastapi import APIRouter, HTTPException, Query
+from typing import Dict, Any, Optional
+from app.services.graph_service import GraphService
 
 router = APIRouter()
-graph_service = DependencyGraphService()
+graph_service = GraphService()
 
+@router.get("/export", response_model=Dict[str, Any])
+def export_graph():
+    """Exports the full code graph nodes and edges for Cytoscape/3D visualization."""
+    return graph_service.export_graph()
 
-class BuildGraphRequest(BaseModel):
-    files: List[Dict[str, Any]]
-    symbols: List[Dict[str, Any]]
+@router.get("/callers", response_model=Dict[str, Any])
+def get_callers(symbol_id: str = Query(..., description="Full symbol ID to query callers for")):
+    """Returns all caller functions for a given symbol."""
+    callers = graph_service.get_callers(symbol_id)
+    return {"symbol_id": symbol_id, "callers": callers}
 
+@router.get("/callees", response_model=Dict[str, Any])
+def get_callees(symbol_id: str = Query(..., description="Full symbol ID to query callees for")):
+    """Returns all functions called by a given symbol."""
+    callees = graph_service.get_callees(symbol_id)
+    return {"symbol_id": symbol_id, "callees": callees}
 
-class GraphMetricsResponse(BaseModel):
-    total_nodes: int
-    total_edges: int
-    is_directed: bool
-    top_depended_nodes: List[Dict[str, Any]]
-
-
-class FileDependenciesResponse(BaseModel):
-    file_path: str
-    imports: List[str]
-    imported_by: List[str]
-
-
-@router.post("/build")
-async def build_graph(request: BuildGraphRequest):
-    try:
-        graph_service.clear()
-
-        # Add files
-        for f in request.files:
-            graph_service.add_file_node(
-                relative_path=f["relative_path"],
-                language=f.get("language", "unknown"),
-                loc=f.get("loc", 0)
-            )
-
-        # Add symbols & edges
-        for s in request.symbols:
-            file_path = s["file_path"]
-            symbol_id = f"{file_path}::{s['name']}"
-            kind = s["kind"]
-
-            if kind == "import":
-                graph_service.add_import_dependency(file_path, s["name"])
-            elif kind == "call":
-                graph_service.add_call_dependency(file_path, s["name"])
-            else:
-                graph_service.add_symbol_node(symbol_id, s["name"], kind, file_path)
-
-        return {"status": "success", "metrics": graph_service.get_graph_metrics()}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to build dependency graph: {str(e)}")
-
-
-@router.get("/metrics", response_model=GraphMetricsResponse)
-async def get_metrics():
-    return graph_service.get_graph_metrics()
-
-
-@router.get("/dependencies/{file_path:path}", response_model=FileDependenciesResponse)
-async def get_dependencies(file_path: str):
-    deps = graph_service.get_file_dependencies(file_path)
-    return FileDependenciesResponse(
-        file_path=file_path,
-        imports=deps["imports"],
-        imported_by=deps["imported_by"]
-    )
+@router.get("/blast-radius", response_model=Dict[str, Any])
+def get_blast_radius(
+    symbol_id: str = Query(..., description="Target symbol ID to calculate blast radius for"),
+    max_depth: int = Query(3, ge=1, le=10, description="Max depth of upstream caller traversal")
+):
+    """Calculates the impact/blast radius when a specific symbol is changed."""
+    impact = graph_service.get_blast_radius(symbol_id, max_depth=max_depth)
+    return {"symbol_id": symbol_id, **impact}
