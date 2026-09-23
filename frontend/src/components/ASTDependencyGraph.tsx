@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useEffect, useState, useCallback } from "react";
 import {
@@ -31,7 +31,6 @@ export default function ASTDependencyGraph() {
           setEdges(data.edges);
         }
       } catch (err) {
-        console.warn("Failed to fetch graph data, using default topology:", err);
         setNodes([
           { id: "1", data: { label: "main.py" }, position: { x: 250, y: 20 } },
           { id: "2", data: { label: "api_ast.py" }, position: { x: 100, y: 130 } },

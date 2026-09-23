@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useState } from "react";
 
@@ -45,14 +45,13 @@ export default function CodeExplanationPanel({
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-xl space-y-4">
-      {/* Header */}
       <div className="border-b border-slate-800 pb-3 flex justify-between items-center">
         <div>
           <h3 className="font-bold text-slate-100 text-base flex items-center gap-2">
             <span>🦙</span> Local Ollama AI Code Explanation Panel
           </h3>
           <p className="text-xs text-slate-400 mt-0.5">
-            Powered by local LLM models (Llama3 / Qwen / Mistral) via Ollama.
+            Powered by local LLM models via Ollama.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -67,7 +66,6 @@ export default function CodeExplanationPanel({
         </div>
       </div>
 
-      {/* Code Snippet Box */}
       <div className="bg-slate-950 border border-slate-800 rounded-lg p-3">
         <span className="text-[10px] text-slate-500 uppercase font-mono font-semibold">
           Target Code Snippet
@@ -77,7 +75,6 @@ export default function CodeExplanationPanel({
         </pre>
       </div>
 
-      {/* Action Tabs */}
       <div className="flex gap-2 border-b border-slate-800 pb-2">
         <button
           onClick={() => generateExplanation("summary")}
@@ -111,7 +108,6 @@ export default function CodeExplanationPanel({
         </button>
       </div>
 
-      {/* Output Panel */}
       <div className="bg-slate-950 border border-slate-800/80 rounded-lg p-4 min-h-[140px] text-xs font-mono text-slate-300">
         {loading ? (
           <div className="flex items-center justify-center py-8 text-blue-400 animate-pulse gap-2">
