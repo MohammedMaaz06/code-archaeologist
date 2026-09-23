@@ -4,8 +4,9 @@
 
 ### Progress & Completed Features:
 - **Phase 1 (Complete Static Analysis)**: Verified Python AST AST analyzer in ackend/app/services/ast_analyzer.py.
-- **Phase 2 (Symbol Resolution Engine)**: Implemented SymbolResolver in ackend/app/services/symbol_resolver.py supporting scope-aware symbol lookup, import matching, and cross-file call disambiguation (distinguishing uth.validate_user vs payment.validate_user).
-- **Testing**: Added unit test suite in ackend/tests/test_symbol_resolver.py.
+- **Phase 2 (Symbol Resolution Engine)**: Implemented SymbolResolver in ackend/app/services/symbol_resolver.py.
+- **Phase 3 (Knowledge Graph Upgrade)**: Expanded NetworkX schema in ackend/app/services/graph_service.py with API and DatabaseOperation nodes, caller/callee traversals, and blast radius calculation.
+- **Git Hygiene**: Cleaned up node_modules binaries and synced clean working tree to remote main repository.
 
 ### Next Session Goal:
-- **Phase 3 (Knowledge Graph Upgrade)**: Expand NetworkX graph schema to include API, DatabaseOperation, and Test nodes and support callers/callees graph traversal queries.
+- **Phase 4 (API Integration & Frontend Graph Visualization)**: Connect NetworkX graph payload to FastAPI /api/v1/graph endpoints and link to frontend Cytoscape / 3D graph visualization.

@@ -1,72 +1,109 @@
 import networkx as nx
 from typing import Dict, List, Any, Optional
-from app.core.logging import logger
 
-
-class DependencyGraphService:
+class GraphService:
     def __init__(self):
         self.graph = nx.DiGraph()
 
-    def clear(self):
+    def build_graph_from_symbols(self, symbols_data: List[Dict[str, Any]], resolved_calls: List[Dict[str, Any]]):
+        """
+        Populates NetworkX graph with File, Class, Function, API, and DB nodes and edges.
+        """
         self.graph.clear()
 
-    def add_file_node(self, relative_path: str, language: str, loc: int):
-        self.graph.add_node(
-            relative_path,
-            type="file",
-            language=language,
-            loc=loc
-        )
+        for sym in symbols_data:
+            sym_id = sym.get("symbol_id") or sym.get("full_symbol_id") or sym.get("symbol_name")
+            sym_type = sym.get("symbol_type", "function")
+            file_path = sym.get("file_path", "")
 
-    def add_symbol_node(self, symbol_id: str, name: str, kind: str, file_path: str):
-        self.graph.add_node(
-            symbol_id,
-            type="symbol",
-            name=name,
-            kind=kind,
-            file_path=file_path
-        )
-        # Link file -> symbol
-        if file_path in self.graph:
-            self.graph.add_edge(file_path, symbol_id, relation="CONTAINS")
+            # 1. Add File Node
+            if file_path and not self.graph.has_node(file_path):
+                self.graph.add_node(file_path, node_type="File", label=file_path)
 
-    def add_import_dependency(self, source_file: str, target_import: str):
-        self.graph.add_node(target_import, type="module")
-        self.graph.add_edge(source_file, target_import, relation="IMPORTS")
+            # 2. Add Symbol Node (Function / Class / Method)
+            self.graph.add_node(
+                sym_id,
+                node_type=sym_type.capitalize(),
+                label=sym.get("short_name", sym.get("symbol_name")),
+                file_path=file_path,
+                start_line=sym.get("start_line"),
+                end_line=sym.get("end_line")
+            )
 
-    def add_call_dependency(self, caller_symbol_id: str, callee_name: str):
-        self.graph.add_node(callee_name, type="unresolved_symbol")
-        self.graph.add_edge(caller_symbol_id, callee_name, relation="CALLS")
+            # Connect File -> Symbol (CONTAINS)
+            if file_path:
+                self.graph.add_edge(file_path, sym_id, relation="CONTAINS")
 
-    def get_file_dependencies(self, relative_path: str) -> Dict[str, List[str]]:
-        if relative_path not in self.graph:
-            return {"imports": [], "imported_by": []}
+            # 3. Detect API Endpoints
+            decorators = sym.get("decorators", [])
+            for dec in decorators:
+                if any(verb in dec.lower() for verb in ["get", "post", "put", "delete", "patch", "api"]):
+                    api_node_id = f"API:{dec}:{sym_id}"
+                    self.graph.add_node(api_node_id, node_type="API", endpoint=dec, handler=sym_id)
+                    self.graph.add_edge(sym_id, api_node_id, relation="EXPOSES_API")
 
-        imports = [
-            target for _, target, data in self.graph.out_edges(relative_path, data=True)
-            if data.get("relation") == "IMPORTS"
-        ]
-        imported_by = [
-            source for source, _, data in self.graph.in_edges(relative_path, data=True)
-            if data.get("relation") == "IMPORTS"
-        ]
+            # 4. Detect DB Operations
+            docstring = sym.get("docstring", "") or ""
+            code_text = sym.get("code", "") or ""
+            if any(db_kw in (docstring + code_text).lower() for db_kw in ["select", "insert", "update", "delete", "query", "session.query"]):
+                db_node_id = f"DB:{sym_id}"
+                self.graph.add_node(db_node_id, node_type="DatabaseOperation", queried_by=sym_id)
+                self.graph.add_edge(sym_id, db_node_id, relation="PERFORMS_DB_OP")
+
+        # 5. Add Function-to-Function CALLS edges
+        for call in resolved_calls:
+            caller = call.get("caller_symbol_id")
+            target = call.get("target_symbol_id")
+            if caller and target and self.graph.has_node(caller) and self.graph.has_node(target):
+                self.graph.add_edge(caller, target, relation="CALLS")
+
+    def get_callers(self, symbol_id: str) -> List[str]:
+        """Returns all functions that call the given symbol."""
+        if not self.graph.has_node(symbol_id):
+            return []
+        return [node for node, _, data in self.graph.in_edges(symbol_id, data=True) if data.get("relation") == "CALLS"]
+
+    def get_callees(self, symbol_id: str) -> List[str]:
+        """Returns all functions called by the given symbol."""
+        if not self.graph.has_node(symbol_id):
+            return []
+        return [target for _, target, data in self.graph.out_edges(symbol_id, data=True) if data.get("relation") == "CALLS"]
+
+    def get_blast_radius(self, symbol_id: str, max_depth: int = 3) -> Dict[str, Any]:
+        """
+        Calculates impact radius (upstream callers) when a symbol is modified.
+        """
+        if not self.graph.has_node(symbol_id):
+            return {"affected_nodes": [], "depth_map": {}}
+
+        visited = {}
+        queue = [(symbol_id, 0)]
+
+        while queue:
+            curr, depth = queue.pop(0)
+            if curr in visited and visited[curr] <= depth:
+                continue
+            visited[curr] = depth
+
+            if depth < max_depth:
+                # Traverse backwards via callers (in-edges)
+                for caller in self.get_callers(curr):
+                    queue.append((caller, depth + 1))
 
         return {
-            "imports": imports,
-            "imported_by": imported_by
+            "affected_nodes": list(visited.keys()),
+            "depth_map": visited,
+            "total_impacted": len(visited) - 1
         }
 
-    def get_graph_metrics(self) -> Dict[str, Any]:
-        num_nodes = self.graph.number_of_nodes()
-        num_edges = self.graph.number_of_edges()
+    def export_graph(self) -> Dict[str, Any]:
+        """Exports full graph in Cytoscape/3D visualization format."""
+        nodes = []
+        for node_id, attrs in self.graph.nodes(data=True):
+            nodes.append({"id": node_id, **attrs})
 
-        # Find top 5 most depended-on nodes
-        in_degrees = dict(self.graph.in_degree())
-        top_dependencies = sorted(in_degrees.items(), key=lambda x: x[1], reverse=True)[:5]
+        edges = []
+        for u, v, attrs in self.graph.edges(data=True):
+            edges.append({"source": u, "target": v, **attrs})
 
-        return {
-            "total_nodes": num_nodes,
-            "total_edges": num_edges,
-            "is_directed": self.graph.is_directed(),
-            "top_depended_nodes": [{"node": node, "in_degree": deg} for node, deg in top_dependencies if deg > 0]
-        }
+        return {"nodes": nodes, "edges": edges}
