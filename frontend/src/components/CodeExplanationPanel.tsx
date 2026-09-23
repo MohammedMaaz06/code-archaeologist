@@ -14,27 +14,33 @@ export default function CodeExplanationPanel({
   const [explanation, setExplanation] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"summary" | "complexity" | "security">("summary");
+  const [usedModel, setUsedModel] = useState<string | null>(null);
 
-  const generateExplanation = (mode: "summary" | "complexity" | "security") => {
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+  const generateExplanation = async (mode: "summary" | "complexity" | "security") => {
     setActiveTab(mode);
     setLoading(true);
 
-    setTimeout(() => {
-      if (mode === "summary") {
-        setExplanation(
-          `**Functional Role:**\nThis method accepts raw source code and converts it into a structural Abstract Syntax Tree (AST).\n\n**Key Actions:**\n1. Invokes Python's native \`ast.parse\` module.\n2. Traverses nodes via custom \`ASTVisitor\`.\n3. Extracts classes, methods, and functions into a standardized dictionary list.`
-        );
-      } else if (mode === "complexity") {
-        setExplanation(
-          `**Time Complexity:** O(N) where N is the number of tokens in the source file.\n**Space Complexity:** O(D) where D is the maximum depth of the AST call stack.\n\n**Maintainability Index:** High (88/100). Standard AST traversal with negligible overhead.`
-        );
-      } else {
-        setExplanation(
-          `**Security Audit:**\n• **AST Parsing:** Safe — parsing source code statically without invoking \`exec()\` or \`eval()\`. \n• **Input Validation:** Ensure file size limits are enforced to avoid AST ReDoS / stack overflow on malformed files.`
-        );
-      }
+    try {
+      const res = await fetch(`${API_URL}/api/explain`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          symbol_name: selectedSymbolName,
+          code_snippet: codeSnippet,
+          mode: mode,
+        }),
+      });
+
+      const data = await res.json();
+      setExplanation(data.explanation || "No output returned.");
+      if (data.model) setUsedModel(data.model);
+    } catch (err: any) {
+      setExplanation(`❌ Failed to connect to backend: ${err.message}`);
+    } finally {
       setLoading(false);
-    }, 600);
+    }
   };
 
   return (
@@ -43,15 +49,22 @@ export default function CodeExplanationPanel({
       <div className="border-b border-slate-800 pb-3 flex justify-between items-center">
         <div>
           <h3 className="font-bold text-slate-100 text-base flex items-center gap-2">
-            <span>💡</span> AI Code Explanation Panel
+            <span>🦙</span> Local Ollama AI Code Explanation Panel
           </h3>
           <p className="text-xs text-slate-400 mt-0.5">
-            Deep contextual explanations, complexity analysis, and security audits for selected symbols.
+            Powered by local LLM models (Llama3 / Qwen / Mistral) via Ollama.
           </p>
         </div>
-        <span className="text-xs font-mono bg-blue-950 border border-blue-800 text-blue-300 px-2.5 py-1 rounded-md">
-          Symbol: {selectedSymbolName}
-        </span>
+        <div className="flex items-center gap-2">
+          {usedModel && (
+            <span className="text-[10px] font-mono bg-emerald-950 border border-emerald-800 text-emerald-300 px-2 py-0.5 rounded">
+              Model: {usedModel}
+            </span>
+          )}
+          <span className="text-xs font-mono bg-blue-950 border border-blue-800 text-blue-300 px-2.5 py-1 rounded-md">
+            Symbol: {selectedSymbolName}
+          </span>
+        </div>
       </div>
 
       {/* Code Snippet Box */}
@@ -74,7 +87,7 @@ export default function CodeExplanationPanel({
               : "bg-slate-950 border-slate-800 text-slate-400 hover:bg-slate-800"
           }`}
         >
-          📝 AI Overview
+          📝 Ollama Overview
         </button>
         <button
           onClick={() => generateExplanation("complexity")}
@@ -98,17 +111,17 @@ export default function CodeExplanationPanel({
         </button>
       </div>
 
-      {/* Explanation Result Output */}
+      {/* Output Panel */}
       <div className="bg-slate-950 border border-slate-800/80 rounded-lg p-4 min-h-[140px] text-xs font-mono text-slate-300">
         {loading ? (
           <div className="flex items-center justify-center py-8 text-blue-400 animate-pulse gap-2">
-            <span className="w-2 h-2 bg-blue-400 rounded-full animate-ping" /> Analyzing code context...
+            <span className="w-2 h-2 bg-blue-400 rounded-full animate-ping" /> Generating with Ollama local model...
           </div>
         ) : explanation ? (
           <div className="whitespace-pre-line leading-relaxed">{explanation}</div>
         ) : (
           <div className="text-slate-500 text-center py-8">
-            Click any button above to generate AI code analysis.
+            Click any button above to run inference through your local Ollama model.
           </div>
         )}
       </div>

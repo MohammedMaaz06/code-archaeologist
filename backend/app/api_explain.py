@@ -1,4 +1,5 @@
 ﻿import os
+import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
@@ -8,79 +9,84 @@ router = APIRouter()
 class ExplanationRequest(BaseModel):
     symbol_name: str
     code_snippet: str
-    mode: Optional[str] = "summary"  # Options: summary, complexity, security
+    mode: Optional[str] = "summary"  # summary, complexity, security
 
 @router.post("/api/explain")
 async def explain_code(req: ExplanationRequest):
     """
-    Calls an LLM (OpenAI API or compatible endpoint) to generate dynamic explanations,
-    complexity breakdown, or security audits for a code snippet.
+    Calls local Ollama instance (default: http://localhost:11434) to generate dynamic 
+    explanations, Big-O complexity analysis, or security audits for code snippets.
     """
-    api_key = os.getenv("OPENAI_API_KEY")
-    api_base = os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1")
-    model_name = os.getenv("LLM_MODEL", "gpt-4o-mini")
+    ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+    model_name = os.getenv("OLLAMA_MODEL", "llama3")
 
-    if not api_key:
-        # Fallback explanation if API key is not yet set in environment
-        return {
-            "status": "warning",
-            "symbol": req.symbol_name,
-            "mode": req.mode,
-            "explanation": (
-                f"**[Demo Mode - OPENAI_API_KEY missing]**\n\n"
-                f"**Target Symbol:** `{req.symbol_name}`\n"
-                f"**Requested Mode:** `{req.mode}`\n\n"
-                "Please set `OPENAI_API_KEY` in your `.env` file to enable live LLM synthesis."
-            )
-        }
-
-    # Custom system prompts per requested mode
     system_prompts = {
         "summary": (
-            "You are an expert code archaeologist and senior staff software engineer. "
-            "Explain the functional role, key steps, and operational flow of the provided code snippet concise and formatted with clean Markdown bolding and bullet points."
+            "You are an expert code archaeologist. Explain the functional role, key steps, "
+            "and operational flow of the provided code snippet concisely using clean Markdown."
         ),
         "complexity": (
-            "You are an algorithm and performance engineer. "
-            "Analyze the provided code snippet for Time Complexity (Big-O) and Space Complexity (Big-O). "
-            "Provide explicit asymptotic reasoning and rate its maintainability score."
+            "You are an algorithms engineer. Analyze the provided code for Time Complexity (Big-O) "
+            "and Space Complexity (Big-O). Provide asymptotic reasoning and a maintainability rating."
         ),
         "security": (
-            "You are a application security engineer performing a static code audit. "
-            "Examine the provided snippet for vulnerability vectors (e.g., injection, unhandled exceptions, buffer/resource leaks) and suggest concrete remediation steps."
+            "You are an application security engineer. Perform a static security check on the code snippet. "
+            "Identify potential vulnerability vectors and suggest concrete remediation steps."
         )
     }
 
     prompt_mode = req.mode.lower() if req.mode else "summary"
     system_prompt = system_prompts.get(prompt_mode, system_prompts["summary"])
 
-    user_prompt = f"Symbol: `{req.symbol_name}`\n\nCode Snippet:\n```python\n{req.code_snippet}\n```"
+    prompt = (
+        f"{system_prompt}\n\n"
+        f"Symbol Name: {req.symbol_name}\n"
+        f"Code Snippet:\n```python\n{req.code_snippet}\n```"
+    )
 
     try:
-        from openai import AsyncOpenAI
-        client = AsyncOpenAI(api_key=api_key, base_url=api_base)
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            res = await client.post(
+                f"{ollama_host}/api/generate",
+                json={
+                    "model": model_name,
+                    "prompt": prompt,
+                    "stream": False
+                }
+            )
 
-        response = await client.chat.completions.create(
-            model=model_name,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
-            temperature=0.2,
-            max_tokens=600
-        )
+            if res.status_code != 200:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Ollama returned status {res.status_code}. Make sure Ollama is running (`ollama serve`)."
+                )
 
-        content = response.choices[0].message.content
+            data = res.json()
+            explanation_text = data.get("response", "No response received from local Ollama model.")
 
+            return {
+                "status": "success",
+                "symbol": req.symbol_name,
+                "mode": req.mode,
+                "model": model_name,
+                "explanation": explanation_text
+            }
+
+    except httpx.ConnectError:
         return {
-            "status": "success",
+            "status": "warning",
             "symbol": req.symbol_name,
             "mode": req.mode,
-            "explanation": content
+            "explanation": (
+                f"**⚠️ Cannot connect to local Ollama instance at `{ollama_host}`**\n\n"
+                "Please make sure Ollama is installed and running:\n"
+                "1. Start server: `ollama serve`\n"
+                "2. Pull model: `ollama pull llama3` (or `qwen2.5`)\n"
+                "3. Retry generating the explanation."
+            )
         }
-
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=f"LLM API request failed: {str(e)}"
+            detail=f"Ollama API request failed: {str(e)}"
         )
