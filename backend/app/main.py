@@ -1,23 +1,14 @@
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from app.api.v1 import graph
+from app.api.endpoints import search
 
-app = FastAPI(title="Code Archaeologist API", version="1.0.0")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+app = FastAPI(
+    title="Code Archaeologist API",
+    version="0.1.0",
+    description="AST, Symbol Resolution, Vector Search, and Code Graph Analysis Service"
 )
 
-@app.get("/")
-def root():
-    return {"message": "Code Archaeologist API Active"}
+app.include_router(search.router)
 
-@app.get("/api/v1/health")
-def health():
-    return {"status": "ok"}
-
-app.include_router(graph.router, prefix="/api/v1/graph", tags=["graph"])
+@app.get("/health")
+def health_check():
+    return {"status": "ok", "service": "code-archaeologist-backend"}
