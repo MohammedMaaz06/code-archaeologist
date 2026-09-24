@@ -1,8 +1,6 @@
-﻿from fastapi import FastAPI
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api_ast import router as ast_router
-from app.api_explain import router as explain_router
-from app.api_graph import router as graph_router
+from app.api.v1 import graph
 
 app = FastAPI(title="Code Archaeologist API", version="1.0.0")
 
@@ -14,10 +12,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(ast_router)
-app.include_router(explain_router)
-app.include_router(graph_router)
+@app.get("/")
+def root():
+    return {"message": "Code Archaeologist API Active"}
 
-@app.get("/health")
-def health_check():
-    return {"status": "ok", "service": "Code Archaeologist API"}
+@app.get("/api/v1/health")
+def health():
+    return {"status": "ok"}
+
+app.include_router(graph.router, prefix="/api/v1/graph", tags=["graph"])
