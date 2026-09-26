@@ -1,10 +1,17 @@
-from fastapi import APIRouter, HTTPException, Status
+from fastapi import APIRouter, HTTPException, status
 from typing import List
-from app.schemas.search import CodeSearchRequest, CodeSearchResponse, SearchResultItem, GraphNode, GraphEdge
+from app.schemas.search import (
+    CodeSearchRequest,
+    CodeSearchResponse,
+    SearchResultItem,
+    GraphNode,
+    GraphEdge,
+)
 
 router = APIRouter(prefix="/search", tags=["Code Search & Call Graph"])
 
-@router.post("/", response_model=CodeSearchResponse, status_code=Status.HTTP_200_OK)
+
+@router.post("/", response_model=CodeSearchResponse, status_code=status.HTTP_200_OK)
 async def search_code_and_subgraph(payload: CodeSearchRequest):
     try:
         dummy_results = [
@@ -14,7 +21,7 @@ async def search_code_and_subgraph(payload: CodeSearchRequest):
                 kind="function",
                 file_path="backend/app/services/parser.py",
                 score=0.92,
-                snippet="def parse_ast(code: str) -> ASTNode: ..."
+                snippet="def parse_ast(code: str) -> ASTNode: ...",
             )
         ]
 
@@ -28,21 +35,22 @@ async def search_code_and_subgraph(payload: CodeSearchRequest):
                     name="parse_ast",
                     kind="function",
                     file_path="backend/app/services/parser.py",
-                    line_number=14
+                    line_number=14,
                 ),
                 GraphNode(
                     id="app.services.resolver.resolve_symbols",
                     name="resolve_symbols",
                     kind="function",
                     file_path="backend/app/services/resolver.py",
-                    line_number=42
-                )
+                    line_number=42,
+                ),
             ]
+
             edges = [
                 GraphEdge(
                     source="app.services.parser.parse_ast",
                     target="app.services.resolver.resolve_symbols",
-                    relationship="calls"
+                    relationship="calls",
                 )
             ]
 
@@ -51,10 +59,11 @@ async def search_code_and_subgraph(payload: CodeSearchRequest):
             total_results=len(dummy_results),
             results=dummy_results,
             nodes=nodes,
-            edges=edges
+            edges=edges,
         )
+
     except Exception as e:
         raise HTTPException(
-            status_code=Status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to execute code search and graph retrieval: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to execute code search and graph retrieval: {str(e)}",
         )
