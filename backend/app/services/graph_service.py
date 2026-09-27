@@ -8,13 +8,24 @@ class GraphService:
     def add_file_node(self, file_path: str, language: str = "python", lines: int = 0):
         self.graph.add_node(file_path, node_type="File", language=language, lines=lines, label=file_path)
 
-    def build_graph_from_symbols(self, symbols_data: List[Dict[str, Any]], resolved_calls: List[Dict[str, Any]]):
+    def build_graph_from_symbols(self, symbols_data: List[Dict[str, Any]], resolved_calls: List[Dict[str, Any]], imports_data: List[Dict[str, Any]] | None = None):
         self.graph.clear()
 
         for sym in symbols_data:
-            sym_id = sym.get("symbol_id") or sym.get("full_symbol_id") or sym.get("symbol_name")
-            sym_type = sym.get("symbol_type", "function")
             file_path = sym.get("file_path", "")
+            symbol_name = sym.get("symbol_name") or sym.get("name", "")
+
+            sym_id = (
+                sym.get("symbol_id")
+                or sym.get("full_symbol_id")
+                or (
+                    f"{file_path}:{symbol_name}"
+                    if file_path and symbol_name
+                    else symbol_name
+                )
+            )
+
+            sym_type = sym.get("symbol_type", "function")
 
             if file_path and not self.graph.has_node(file_path):
                 self.add_file_node(file_path)
@@ -22,7 +33,7 @@ class GraphService:
             self.graph.add_node(
                 sym_id,
                 node_type=sym_type.capitalize(),
-                label=sym.get("short_name", sym.get("symbol_name")),
+                label=sym.get("short_name", symbol_name),
                 file_path=file_path,
                 start_line=sym.get("start_line"),
                 end_line=sym.get("end_line")
@@ -31,12 +42,28 @@ class GraphService:
             if file_path:
                 self.graph.add_edge(file_path, sym_id, relation="CONTAINS")
 
+        for import_data in imports_data or []:
+            source = import_data.get("source_file")
+            target = import_data.get("target_file")
+
+            if (
+                source
+                and target
+                and self.graph.has_node(source)
+                and self.graph.has_node(target)
+            ):
+                self.graph.add_edge(
+                    source,
+                    target,
+                    relation="IMPORTS",
+                )
+
         for call in resolved_calls:
             caller = call.get("caller_symbol_id")
             target = call.get("target_symbol_id")
+
             if caller and target and self.graph.has_node(caller) and self.graph.has_node(target):
                 self.graph.add_edge(caller, target, relation="CALLS")
-
     def get_callers(self, symbol_id: str) -> List[str]:
         if not self.graph.has_node(symbol_id):
             return []

@@ -24,6 +24,7 @@ class RepositoryAnalysisService:
         self.files = []
         self.files_analysis = []
         self.resolved_calls = []
+        self.resolved_imports = []
 
     def analyze(self):
         self.files = self.scanner.scan()
@@ -48,10 +49,12 @@ class RepositoryAnalysisService:
         self.resolved_calls = self._resolve_calls()
 
         symbols = self._flatten_symbols()
+        self.resolved_imports = self._resolve_imports()
 
         self.graph_service.build_graph_from_symbols(
             symbols_data=symbols,
             resolved_calls=self.resolved_calls,
+            imports_data=self.resolved_imports,
         )
 
         return {
@@ -157,10 +160,92 @@ class RepositoryAnalysisService:
             if target_symbol:
                 resolved.append({
                     **call,
+                    "caller_symbol_id": caller_symbol_id,
                     "target_symbol_id": target_symbol.get("target_symbol_id"),
                 })
 
         return resolved
+
+    def _resolve_imports(self):
+        resolved = []
+
+        for file_data in self.files_analysis:
+            source_file = file_data.get("file_path", "")
+
+            for import_data in file_data.get("imports", []):
+                module = import_data.get("module", "")
+                if not module:
+                    continue
+
+                target_file = self._resolve_import_target(
+                    source_file,
+                    module,
+                )
+
+                if target_file:
+                    resolved.append(
+                        {
+                            **import_data,
+                            "source_file": source_file,
+                            "target_file": target_file,
+                            "relation": "IMPORTS",
+                        }
+                    )
+
+        return resolved
+
+    def _resolve_import_target(self, source_file, module):
+        source_path = self.repo_path / source_file
+        source_dir = source_path.parent
+
+        candidates = []
+
+        # Python imports: auth, package.auth, package
+        if not module.startswith("."):
+            python_module = module.replace(".", "/")
+
+            candidates.extend(
+                [
+                    f"{python_module}.py",
+                    f"{python_module}/__init__.py",
+                ]
+            )
+
+        # JavaScript / TypeScript relative imports.
+        if module.startswith("."):
+            relative = (source_dir / module).resolve()
+
+            candidates.extend(
+                [
+                    relative,
+                    Path(f"{relative}.js"),
+                    Path(f"{relative}.jsx"),
+                    Path(f"{relative}.ts"),
+                    Path(f"{relative}.tsx"),
+                    relative / "index.js",
+                    relative / "index.ts",
+                    relative / "index.tsx",
+                ]
+            )
+
+        for candidate in candidates:
+            candidate_path = (
+                candidate
+                if isinstance(candidate, Path)
+                else self.repo_path / candidate
+            )
+
+            try:
+                relative_path = candidate_path.resolve().relative_to(
+                    self.repo_path
+                )
+            except ValueError:
+                continue
+
+            if candidate_path.is_file():
+                return relative_path.as_posix()
+
+        return None
 
     def _flatten_symbols(self):
         symbols = []
