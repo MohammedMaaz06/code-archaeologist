@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import RepoIndexer from "@/components/RepoIndexer";
-import { api } from "@/lib/api";
+import { api, IndexRepoResponse } from "@/lib/api";
 import { 
   Activity, 
   GitBranch, 
@@ -17,6 +17,7 @@ import {
 export default function Home() {
   const [healthStatus, setHealthStatus] = useState<string>("Checking...");
   const [showScanner, setShowScanner] = useState<boolean>(false);
+  const [indexStats, setIndexStats] = useState<IndexRepoResponse | null>(null);
 
   useEffect(() => {
     api.getHealth()
@@ -25,10 +26,34 @@ export default function Home() {
   }, []);
 
   const stats = [
-    { label: "Repositories Indexed", value: "12", change: "+2 this week", icon: GitBranch, color: "from-blue-500 to-cyan-400" },
-    { label: "Symbols Extracted", value: "8,492", change: "+15% vs last scan", icon: FileCode2, color: "from-indigo-500 to-purple-400" },
-    { label: "Graph Connectivity", value: "98.4%", change: "Optimal", icon: Activity, color: "from-emerald-500 to-teal-400" },
-    { label: "AI Query Latency", value: "340ms", change: "Fast response", icon: Cpu, color: "from-amber-500 to-orange-400" },
+    {
+      label: "Files Indexed",
+      value: indexStats ? indexStats.indexed_files.toLocaleString() : "?",
+      change: indexStats ? "Latest scan" : "Run a repository scan",
+      icon: GitBranch,
+      color: "from-blue-500 to-cyan-400",
+    },
+    {
+      label: "Symbols Extracted",
+      value: indexStats ? indexStats.total_symbols.toLocaleString() : "?",
+      change: indexStats ? "Latest scan" : "Waiting for scan",
+      icon: FileCode2,
+      color: "from-indigo-500 to-purple-400",
+    },
+    {
+      label: "Chunks Generated",
+      value: indexStats ? indexStats.total_chunks.toLocaleString() : "?",
+      change: indexStats ? "Latest scan" : "Waiting for scan",
+      icon: Activity,
+      color: "from-emerald-500 to-teal-400",
+    },
+    {
+      label: "Index Status",
+      value: indexStats ? indexStats.status : "Idle",
+      change: indexStats ? "Latest scan completed" : "No scan yet",
+      icon: Cpu,
+      color: "from-amber-500 to-orange-400",
+    },
   ];
 
   const quickActions = [
@@ -80,7 +105,7 @@ export default function Home() {
             </div>
           </div>
 
-          <RepoIndexer />
+          <RepoIndexer onIndexed={(result) => setIndexStats(result)} />
         </section>
       )}
 

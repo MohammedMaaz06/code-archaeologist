@@ -11,7 +11,11 @@ interface ProgressMessage {
   status?: string;
 }
 
-export default function RepoIndexer() {
+interface RepoIndexerProps {
+  onIndexed?: (result: IndexRepoResponse) => void;
+}
+
+export default function RepoIndexer({ onIndexed }: RepoIndexerProps) {
   const [repoPath, setRepoPath] = useState<string>(".");
   const [chunkSize, setChunkSize] = useState<number>(500);
   const [chunkOverlap, setChunkOverlap] = useState<number>(50);
@@ -87,6 +91,7 @@ export default function RepoIndexer() {
       });
       setResult(res);
       setProgressPercentage(100);
+      onIndexed?.(res);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Indexing failed.");
     } finally {
