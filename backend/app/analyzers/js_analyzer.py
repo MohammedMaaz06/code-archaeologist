@@ -389,20 +389,39 @@ class JSTSAnalyzer:
             return
 
         receiver_name = None
+        receiver_chain = []
 
         if function_node.type in {
             "member_expression",
             "optional_member_expression",
         }:
             object_node = function_node.child_by_field_name("object")
+            current = object_node
+            chain = []
 
-            if object_node is not None and object_node.type == "identifier":
-                receiver_name = self._node_text(object_node)
+            while current is not None and current.type in {
+                "member_expression",
+                "optional_member_expression",
+            }:
+                property_node = current.child_by_field_name("property")
+
+                if property_node is not None:
+                    chain.insert(0, self._node_text(property_node))
+
+                current = current.child_by_field_name("object")
+
+            if current is not None and current.type in {"identifier", "this"}:
+                root_name = self._node_text(current)
+                chain.insert(0, root_name)
+                receiver_name = root_name
+
+            receiver_chain = chain
 
         calls.append(
             {
                 "target_name": target_name,
                 "receiver_name": receiver_name,
+                "receiver_chain": receiver_chain,
                 "caller_symbol": current_symbol,
                 "file_path": str(self.file_path),
                 "start_line": self._line(node),

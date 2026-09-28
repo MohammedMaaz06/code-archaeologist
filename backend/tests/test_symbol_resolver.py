@@ -1,3 +1,4 @@
+from pathlib import Path
 import pytest
 from app.services.symbol_resolver import SymbolResolver
 
@@ -364,3 +365,108 @@ def test_resolves_javascript_instance_method_from_constructor_binding():
     assert result["resolved"] is True
     assert result["resolution_type"] == "instance_member"
     assert result["target_symbol_id"] == "auth.js:UserService.authenticate"
+
+
+def test_python_nested_member_call_chain_is_extracted():
+    from backend.app.analyzers.python_analyzer import PythonASTAnalyzer
+
+    source = """
+class App:
+    def run(self):
+        self.auth_service.authenticate()
+"""
+
+    analyzer = PythonASTAnalyzer(Path("service.py"), source)
+    result = analyzer.analyze()
+
+    calls = [
+        call
+        for call in result["calls"]
+        if call.get("target_name") == "authenticate"
+    ]
+
+    assert len(calls) == 1
+    assert calls[0]["receiver_name"] == "self"
+    assert calls[0]["receiver_chain"] == ["self", "auth_service"]
+
+
+def test_python_multi_level_member_call_chain_is_extracted():
+    from backend.app.analyzers.python_analyzer import PythonASTAnalyzer
+
+    source = """
+class App:
+    def run(self):
+        self.services.auth.authenticate()
+"""
+
+    analyzer = PythonASTAnalyzer(Path("service.py"), source)
+    result = analyzer.analyze()
+
+    calls = [
+        call
+        for call in result["calls"]
+        if call.get("target_name") == "authenticate"
+    ]
+
+    assert len(calls) == 1
+    assert calls[0]["receiver_chain"] == [
+        "self",
+        "services",
+        "auth",
+    ]
+
+
+def test_javascript_nested_member_call_chain_is_extracted():
+    from backend.app.analyzers.js_analyzer import JSTSAnalyzer
+
+    source = """
+class App {
+    run() {
+        this.authService.authenticate();
+    }
+}
+"""
+
+    analyzer = JSTSAnalyzer(Path("service.js"), source)
+    result = analyzer.analyze()
+
+    calls = [
+        call
+        for call in result["calls"]
+        if call.get("target_name") == "authenticate"
+    ]
+
+    assert len(calls) == 1
+    assert calls[0]["receiver_name"] == "this"
+    assert calls[0]["receiver_chain"] == [
+        "this",
+        "authService",
+    ]
+
+
+def test_javascript_multi_level_member_call_chain_is_extracted():
+    from backend.app.analyzers.js_analyzer import JSTSAnalyzer
+
+    source = """
+class App {
+    run() {
+        this.services.auth.authenticate();
+    }
+}
+"""
+
+    analyzer = JSTSAnalyzer(Path("service.js"), source)
+    result = analyzer.analyze()
+
+    calls = [
+        call
+        for call in result["calls"]
+        if call.get("target_name") == "authenticate"
+    ]
+
+    assert len(calls) == 1
+    assert calls[0]["receiver_chain"] == [
+        "this",
+        "services",
+        "auth",
+    ]

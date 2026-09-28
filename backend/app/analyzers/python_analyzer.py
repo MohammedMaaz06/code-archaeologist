@@ -341,18 +341,27 @@ class PythonASTAnalyzer:
 
             def visit_Call(self, node: ast.Call):
                 target_name = None
-
-                if isinstance(node.func, ast.Name):
-                    target_name = node.func.id
                 receiver_name = None
+                receiver_chain = []
 
                 if isinstance(node.func, ast.Name):
                     target_name = node.func.id
+
                 elif isinstance(node.func, ast.Attribute):
                     target_name = node.func.attr
 
-                    if isinstance(node.func.value, ast.Name):
-                        receiver_name = node.func.value.id
+                    current = node.func.value
+                    chain = []
+
+                    while isinstance(current, ast.Attribute):
+                        chain.insert(0, current.attr)
+                        current = current.value
+
+                    if isinstance(current, ast.Name):
+                        chain.insert(0, current.id)
+                        receiver_name = current.id
+
+                    receiver_chain = chain
 
                 if target_name:
                     caller_name = self.current_function
@@ -367,6 +376,7 @@ class PythonASTAnalyzer:
                         {
                             "target_name": target_name,
                             "receiver_name": receiver_name,
+                            "receiver_chain": receiver_chain,
                             "caller_symbol": caller_name,
                             "caller_symbol_id": caller_symbol_id,
                             "file_path": str(self_outer.file_path),
