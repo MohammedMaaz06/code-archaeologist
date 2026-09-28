@@ -114,4 +114,13 @@ export const api = {
 
   exportGraph: () =>
     fetchAPI<{ nodes: GraphNodeResponse[]; edges: GraphEdgeResponse[] }>("/graph/export"),
+
+  getBlastRadius: (symbolId: string, maxDepth = 3) =>
+    fetchAPI<{
+      symbol_id: string;
+      total_impacted: number;
+      affected_nodes: string[];
+    }>(
+      `/graph/blast-radius?symbol_id=${encodeURIComponent(symbolId)}&max_depth=${maxDepth}`
+    ),
 };
