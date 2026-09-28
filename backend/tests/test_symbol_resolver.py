@@ -104,7 +104,8 @@ def test_resolves_python_import_alias():
         target_name="auth_user",
     )
 
-    assert result is not None
+    assert result["resolved"] is True
+    assert result["target_symbol_id"] == "auth.py:authenticate_user"
     assert result["target_symbol_id"] == "auth.py:authenticate_user"
 
 
@@ -149,3 +150,104 @@ def test_resolves_javascript_relative_import_alias():
 
     assert result is not None
     assert result["target_symbol_id"] == "auth.js:authenticateUser"
+
+def test_resolves_python_class_method_member_call():
+    from app.services.symbol_resolver import SymbolResolver
+
+    resolver = SymbolResolver()
+
+    resolver.register_symbols([
+        {
+            "file_path": "auth.py",
+            "imports": [],
+            "classes": [
+                {
+                    "symbol_name": "UserService",
+                    "short_name": "UserService",
+                    "symbol_type": "class",
+                    "file_path": "auth.py",
+                    "methods": [
+                        {
+                            "symbol_name": "authenticate",
+                            "short_name": "authenticate",
+                            "symbol_type": "method",
+                            "file_path": "auth.py",
+                        }
+                    ],
+                }
+            ],
+            "functions": [],
+        },
+        {
+            "file_path": "service.py",
+            "imports": [
+                {
+                    "module": "auth",
+                    "imported_name": "UserService",
+                    "alias": "UserService",
+                }
+            ],
+            "classes": [],
+            "functions": [],
+        },
+    ])
+
+    result = resolver.resolve_call(
+        caller_file="service.py",
+        caller_symbol="login_flow",
+        target_name="authenticate",
+    )
+
+    assert result["resolved"] is True
+    assert result["target_symbol_id"] == "auth.py:UserService.authenticate"
+
+
+def test_resolves_javascript_class_method_import():
+    from app.services.symbol_resolver import SymbolResolver
+
+    resolver = SymbolResolver()
+
+    resolver.register_symbols([
+        {
+            "file_path": "auth.js",
+            "imports": [],
+            "classes": [
+                {
+                    "symbol_name": "UserService",
+                    "short_name": "UserService",
+                    "symbol_type": "class",
+                    "file_path": "auth.js",
+                    "methods": [
+                        {
+                            "symbol_name": "authenticate",
+                            "short_name": "authenticate",
+                            "symbol_type": "method",
+                            "file_path": "auth.js",
+                        }
+                    ],
+                }
+            ],
+            "functions": [],
+        },
+        {
+            "file_path": "service.js",
+            "imports": [
+                {
+                    "module": "./auth.js",
+                    "imported_name": "UserService",
+                    "alias": "UserService",
+                }
+            ],
+            "classes": [],
+            "functions": [],
+        },
+    ])
+
+    result = resolver.resolve_call(
+        caller_file="service.js",
+        caller_symbol="loginFlow",
+        target_name="authenticate",
+    )
+
+    assert result["resolved"] is True
+    assert result["target_symbol_id"] == "auth.js:UserService.authenticate"

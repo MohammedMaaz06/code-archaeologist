@@ -23,7 +23,7 @@ class SymbolResolver:
                 key = (file_path, cls["symbol_name"])
                 self.local_scope_map.setdefault(key, []).append(full_name)
 
-            # Register functions & methods
+            # Register functions
             for func in file_data.get("functions", []):
                 full_name = f"{file_path}:{func['symbol_name']}"
                 self.symbol_table[full_name] = {**func, "full_symbol_id": full_name}
@@ -31,6 +31,28 @@ class SymbolResolver:
                 short_name = func.get("short_name", func["symbol_name"])
                 key = (file_path, short_name)
                 self.local_scope_map.setdefault(key, []).append(full_name)
+
+            # Register class methods
+            for cls in file_data.get("classes", []):
+                class_name = cls["symbol_name"]
+
+                for method in cls.get("methods", []):
+                    method_name = method["symbol_name"]
+                    full_name = f"{file_path}:{class_name}.{method_name}"
+
+                    method_info = {
+                        **method,
+                        "symbol_name": f"{class_name}.{method_name}",
+                        "short_name": method.get("short_name", method_name),
+                        "class_name": class_name,
+                        "file_path": file_path,
+                        "full_symbol_id": full_name,
+                    }
+
+                    self.symbol_table[full_name] = method_info
+
+                    key = (file_path, method_info["short_name"])
+                    self.local_scope_map.setdefault(key, []).append(full_name)
 
     def resolve_call(self, caller_file: str, caller_symbol: str, target_name: str) -> Dict[str, Any]:
         """
@@ -107,6 +129,30 @@ class SymbolResolver:
                             "resolution_type": "imported",
                             "symbol": sym_info
                         }
+
+                    # Resolve member calls on an imported class:
+                    # UserService.authenticate -> auth.py:UserService.authenticate
+                    imported_class_id = f"{sym_info.get('file_path', '')}:{target_symbol}"
+
+                    if (
+                        sym_info.get("symbol_type") == "class"
+                        and sym_id == imported_class_id
+                    ):
+                        method_matches = [
+                            (method_id, method_info)
+                            for method_id, method_info in self.symbol_table.items()
+                            if method_id.startswith(imported_class_id + ".")
+                            and method_info.get("short_name") == target_name
+                        ]
+
+                        if len(method_matches) == 1:
+                            method_id, method_info = method_matches[0]
+                            return {
+                                "resolved": True,
+                                "target_symbol_id": method_id,
+                                "resolution_type": "imported_member",
+                                "symbol": method_info
+                            }
 
         # 3. Fallback: Fuzzy global search across symbol table
         matching_globals = [
