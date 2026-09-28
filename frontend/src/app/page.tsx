@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from "react";
+import RepoIndexer from "@/components/RepoIndexer";
 import { 
   Activity, 
   GitBranch, 
@@ -14,6 +15,7 @@ import {
 
 export default function Home() {
   const [healthStatus, setHealthStatus] = useState<string>("Checking...");
+  const [showScanner, setShowScanner] = useState<boolean>(false);
 
   useEffect(() => {
     fetch("http://127.0.0.1:8000/api/v1/health")
@@ -56,11 +58,31 @@ export default function Home() {
           <button className="px-4 py-2 text-sm font-medium rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white transition-all shadow-sm">
             Docs
           </button>
-          <button className="px-4 py-2 text-sm font-semibold rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white transition-all shadow-lg shadow-indigo-500/20 active:scale-95">
-            + New Scan
+          <button
+            onClick={() => setShowScanner((prev) => !prev)}
+            className="px-4 py-2 text-sm font-semibold rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white transition-all shadow-lg shadow-indigo-500/20 active:scale-95"
+          >
+            {showScanner ? "Close Scanner" : "+ New Scan"}
           </button>
         </div>
       </header>
+
+      {showScanner && (
+        <section className="mb-10">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-bold text-slate-200">
+                Repository Analysis
+              </h2>
+              <p className="text-sm text-slate-400 mt-1">
+                Analyze a repository and build its code intelligence index.
+              </p>
+            </div>
+          </div>
+
+          <RepoIndexer />
+        </section>
+      )}
 
       {/* Metrics Grid */}
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-10">
@@ -99,6 +121,12 @@ export default function Home() {
             return (
               <div
                 key={idx}
+                onClick={() => {
+                  if (action.title === "Repository Scanner") {
+                    setShowScanner(true);
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }
+                }}
                 className="group relative p-6 rounded-2xl bg-slate-900/40 border border-slate-800/80 hover:border-indigo-500/50 hover:bg-slate-900/80 transition-all duration-300 cursor-pointer shadow-sm hover:shadow-indigo-500/10"
               >
                 <div className="flex items-start justify-between mb-3">
