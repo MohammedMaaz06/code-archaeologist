@@ -50,17 +50,57 @@ class SymbolResolver:
 
         # 2. Check imports in caller_file
         imports = self.file_imports.get(caller_file, [])
+
         for imp in imports:
             imported_name = imp.get("imported_name")
             alias = imp.get("alias")
-            module = imp.get("module")
+            module = imp.get("module") or ""
 
-            # Match alias or direct import name
             if alias == target_name or imported_name == target_name:
-                target_symbol = imported_name if imported_name != "*" else target_name
-                # Find matching symbols from module path
+                target_symbol = (
+                    imported_name
+                    if imported_name != "*"
+                    else target_name
+                )
+
+                module_normalized = (
+                    module
+                    .replace("\\", "/")
+                    .lstrip("./")
+                )
+
+                module_stem = module_normalized
+                for extension in (".py", ".js", ".ts", ".tsx"):
+                    if module_stem.endswith(extension):
+                        module_stem = module_stem[:-len(extension)]
+                        break
+
+                module_dotted = module_stem.replace("/", ".")
+
                 for sym_id, sym_info in self.symbol_table.items():
-                    if target_symbol in sym_id and module.replace(".", "/") in sym_info["file_path"]:
+                    symbol_file = (
+                        sym_info.get("file_path", "")
+                        .replace("\\", "/")
+                        .lstrip("./")
+                    )
+
+                    symbol_stem = symbol_file
+                    for extension in (".py", ".js", ".ts", ".tsx"):
+                        if symbol_stem.endswith(extension):
+                            symbol_stem = symbol_stem[:-len(extension)]
+                            break
+
+                    symbol_dotted = symbol_stem.replace("/", ".")
+
+                    module_matches = (
+                        symbol_file == module_normalized
+                        or symbol_file.endswith("/" + module_normalized)
+                        or symbol_stem == module_stem
+                        or symbol_dotted == module_dotted
+                        or symbol_dotted.endswith("." + module_dotted)
+                    )
+
+                    if target_symbol in sym_id and module_matches:
                         return {
                             "resolved": True,
                             "target_symbol_id": sym_id,
@@ -71,7 +111,8 @@ class SymbolResolver:
         # 3. Fallback: Fuzzy global search across symbol table
         matching_globals = [
             sym_id for sym_id, sym_info in self.symbol_table.items()
-            if sym_info.get("short_name") == target_name or sym_id.endswith(f":{target_name}")
+            if sym_info.get("short_name") == target_name
+            or sym_id.endswith(f":{target_name}")
         ]
 
         if len(matching_globals) == 1:

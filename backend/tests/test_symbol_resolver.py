@@ -64,3 +64,88 @@ def test_symbol_resolver_cross_file():
     assert import_res["resolved"] is True
     assert import_res["resolution_type"] == "imported"
     assert import_res["target_symbol_id"] == "backend/auth.py:validate_user"
+
+def test_resolves_python_import_alias():
+    from app.services.symbol_resolver import SymbolResolver
+
+    resolver = SymbolResolver()
+
+    resolver.register_symbols([
+        {
+            "file_path": "auth.py",
+            "imports": [],
+            "classes": [],
+            "functions": [
+                {
+                    "symbol_name": "authenticate_user",
+                    "short_name": "authenticate_user",
+                    "symbol_type": "function",
+                    "file_path": "auth.py",
+                }
+            ],
+        },
+        {
+            "file_path": "service.py",
+            "imports": [
+                {
+                    "module": "auth",
+                    "imported_name": "authenticate_user",
+                    "alias": "auth_user",
+                }
+            ],
+            "classes": [],
+            "functions": [],
+        },
+    ])
+
+    result = resolver.resolve_call(
+        caller_file="service.py",
+        caller_symbol="login_flow",
+        target_name="auth_user",
+    )
+
+    assert result is not None
+    assert result["target_symbol_id"] == "auth.py:authenticate_user"
+
+
+def test_resolves_javascript_relative_import_alias():
+    from app.services.symbol_resolver import SymbolResolver
+
+    resolver = SymbolResolver()
+
+    resolver.register_symbols([
+        {
+            "file_path": "auth.js",
+            "imports": [],
+            "classes": [],
+            "functions": [
+                {
+                    "symbol_name": "authenticateUser",
+                    "short_name": "authenticateUser",
+                    "symbol_type": "function",
+                    "file_path": "auth.js",
+                }
+            ],
+        },
+        {
+            "file_path": "service.js",
+            "imports": [
+                {
+                    "module": "./auth.js",
+                    "imported_name": "authenticateUser",
+                    "alias": "authUser",
+                }
+            ],
+            "classes": [],
+            "functions": [],
+        },
+    ])
+
+    result = resolver.resolve_call(
+        caller_file="service.js",
+        caller_symbol="loginFlow",
+        target_name="authUser",
+    )
+
+    assert result is not None
+    assert result["target_symbol_id"] == "auth.js:authenticateUser"
