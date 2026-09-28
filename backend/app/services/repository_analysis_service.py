@@ -145,6 +145,7 @@ class RepositoryAnalysisService:
             caller_symbol_id = call.get("caller_symbol_id")
             caller_symbol = call.get("caller_symbol")
             target_name = call.get("target_name")
+            receiver_name = call.get("receiver_name")
 
             if not caller_symbol_id or not target_name:
                 continue
@@ -155,6 +156,7 @@ class RepositoryAnalysisService:
                 caller_file=caller_file,
                 caller_symbol=caller_symbol,
                 target_name=target_name,
+                receiver_name=receiver_name,
             )
 
             if target_symbol:

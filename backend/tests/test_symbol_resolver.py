@@ -106,7 +106,6 @@ def test_resolves_python_import_alias():
 
     assert result["resolved"] is True
     assert result["target_symbol_id"] == "auth.py:authenticate_user"
-    assert result["target_symbol_id"] == "auth.py:authenticate_user"
 
 
 def test_resolves_javascript_relative_import_alias():
@@ -148,7 +147,7 @@ def test_resolves_javascript_relative_import_alias():
         target_name="authUser",
     )
 
-    assert result is not None
+    assert result["resolved"] is True
     assert result["target_symbol_id"] == "auth.js:authenticateUser"
 
 def test_resolves_python_class_method_member_call():
@@ -250,4 +249,118 @@ def test_resolves_javascript_class_method_import():
     )
 
     assert result["resolved"] is True
+    assert result["target_symbol_id"] == "auth.js:UserService.authenticate"
+
+
+def test_resolves_python_instance_method_from_constructor_binding():
+    resolver = SymbolResolver()
+
+    resolver.register_symbols([
+        {
+            "file_path": "auth.py",
+            "imports": [],
+            "classes": [
+                {
+                    "symbol_name": "UserService",
+                    "short_name": "UserService",
+                    "symbol_type": "class",
+                    "file_path": "auth.py",
+                    "methods": [
+                        {
+                            "symbol_name": "authenticate",
+                            "short_name": "authenticate",
+                            "symbol_type": "method",
+                            "file_path": "auth.py",
+                        }
+                    ],
+                }
+            ],
+            "functions": [],
+        },
+        {
+            "file_path": "service.py",
+            "imports": [
+                {
+                    "module": "auth",
+                    "imported_name": "UserService",
+                    "alias": "UserService",
+                }
+            ],
+            "variable_bindings": [
+                {
+                    "variable_name": "service",
+                    "class_name": "UserService",
+                }
+            ],
+            "classes": [],
+            "functions": [],
+        },
+    ])
+
+    result = resolver.resolve_call(
+        caller_file="service.py",
+        caller_symbol="login_flow",
+        target_name="authenticate",
+        receiver_name="service",
+    )
+
+    assert result["resolved"] is True
+    assert result["resolution_type"] == "instance_member"
+    assert result["target_symbol_id"] == "auth.py:UserService.authenticate"
+
+
+def test_resolves_javascript_instance_method_from_constructor_binding():
+    resolver = SymbolResolver()
+
+    resolver.register_symbols([
+        {
+            "file_path": "auth.js",
+            "imports": [],
+            "classes": [
+                {
+                    "symbol_name": "UserService",
+                    "short_name": "UserService",
+                    "symbol_type": "class",
+                    "file_path": "auth.js",
+                    "methods": [
+                        {
+                            "symbol_name": "authenticate",
+                            "short_name": "authenticate",
+                            "symbol_type": "method",
+                            "file_path": "auth.js",
+                        }
+                    ],
+                }
+            ],
+            "functions": [],
+        },
+        {
+            "file_path": "service.js",
+            "imports": [
+                {
+                    "module": "./auth.js",
+                    "imported_name": "UserService",
+                    "alias": "UserService",
+                }
+            ],
+            "variable_bindings": [
+                {
+                    "variable_name": "service",
+                    "class_name": "UserService",
+                }
+            ],
+            "classes": [],
+            "functions": [],
+        },
+    ])
+
+    result = resolver.resolve_call(
+        caller_file="service.js",
+        caller_symbol="loginFlow",
+        target_name="authenticate",
+        receiver_name="service",
+    )
+
+    assert result["resolved"] is True
+    assert result["resolution_type"] == "instance_member"
     assert result["target_symbol_id"] == "auth.js:UserService.authenticate"

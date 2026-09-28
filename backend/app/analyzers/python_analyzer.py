@@ -209,6 +209,7 @@ class PythonASTAnalyzer:
             "classes": [],
             "functions": [],
             "calls": [],
+            "variable_bindings": [],
         }
 
         if tree is None:
@@ -303,13 +304,55 @@ class PythonASTAnalyzer:
             def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef):
                 self._visit_function(node, is_async=True)
 
+            def visit_Assign(self, node: ast.Assign):
+                if (
+                    isinstance(node.value, ast.Call)
+                    and isinstance(node.value.func, ast.Name)
+                ):
+                    class_name = node.value.func.id
+
+                    for target in node.targets:
+                        if isinstance(target, ast.Name):
+                            result["variable_bindings"].append(
+                                {
+                                    "variable_name": target.id,
+                                    "class_name": class_name,
+                                    "file_path": str(self_outer.file_path),
+                                }
+                            )
+
+                self.generic_visit(node)
+
+            def visit_AnnAssign(self, node: ast.AnnAssign):
+                if (
+                    isinstance(node.value, ast.Call)
+                    and isinstance(node.value.func, ast.Name)
+                    and isinstance(node.target, ast.Name)
+                ):
+                    result["variable_bindings"].append(
+                        {
+                            "variable_name": node.target.id,
+                            "class_name": node.value.func.id,
+                            "file_path": str(self_outer.file_path),
+                        }
+                    )
+
+                self.generic_visit(node)
+
             def visit_Call(self, node: ast.Call):
                 target_name = None
 
                 if isinstance(node.func, ast.Name):
                     target_name = node.func.id
+                receiver_name = None
+
+                if isinstance(node.func, ast.Name):
+                    target_name = node.func.id
                 elif isinstance(node.func, ast.Attribute):
                     target_name = node.func.attr
+
+                    if isinstance(node.func.value, ast.Name):
+                        receiver_name = node.func.value.id
 
                 if target_name:
                     caller_name = self.current_function
@@ -323,6 +366,7 @@ class PythonASTAnalyzer:
                     result["calls"].append(
                         {
                             "target_name": target_name,
+                            "receiver_name": receiver_name,
                             "caller_symbol": caller_name,
                             "caller_symbol_id": caller_symbol_id,
                             "file_path": str(self_outer.file_path),

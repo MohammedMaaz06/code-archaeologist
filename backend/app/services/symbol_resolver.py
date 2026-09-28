@@ -8,12 +8,21 @@ class SymbolResolver:
         self.local_scope_map: Dict[tuple, List[str]] = {}
         # Maps file_path -> list of import dicts
         self.file_imports: Dict[str, List[Dict[str, Any]]] = {}
+        # Maps file_path -> variable/instance bindings
+        # Example: service -> UserService
+        self.file_bindings: Dict[str, Dict[str, str]] = {}
 
     def register_symbols(self, files_analysis: List[Dict[str, Any]]):
         """Builds symbol tables and import registers across indexed files."""
         for file_data in files_analysis:
             file_path = file_data.get("file_path", "")
             self.file_imports[file_path] = file_data.get("imports", [])
+
+            self.file_bindings[file_path] = {
+                binding.get("variable_name"): binding.get("class_name")
+                for binding in file_data.get("variable_bindings", [])
+                if binding.get("variable_name") and binding.get("class_name")
+            }
 
             # Register classes
             for cls in file_data.get("classes", []):
@@ -54,12 +63,64 @@ class SymbolResolver:
                     key = (file_path, method_info["short_name"])
                     self.local_scope_map.setdefault(key, []).append(full_name)
 
-    def resolve_call(self, caller_file: str, caller_symbol: str, target_name: str) -> Dict[str, Any]:
+    def resolve_call(
+        self,
+        caller_file: str,
+        caller_symbol: str,
+        target_name: str,
+        receiver_name: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """
         Resolves a function call target_name to its fully-qualified target symbol.
         Disambiguates between local scope, imported symbols, and global symbols.
         """
-        # 1. Check local file scope
+        # 1. Resolve receiver-aware member calls.
+        #
+        # Example:
+        #   service = UserService()
+        #   service.authenticate()
+        #
+        # The analyzer supplies:
+        #   receiver_name="service"
+        #   target_name="authenticate"
+        #
+        # We first resolve service -> UserService, then resolve
+        # UserService.authenticate.
+        if receiver_name:
+            bindings = self.file_bindings.get(caller_file, {})
+            class_name = bindings.get(receiver_name)
+
+            if class_name:
+                class_result = self.resolve_call(
+                    caller_file=caller_file,
+                    caller_symbol=caller_symbol,
+                    target_name=class_name,
+                )
+
+                if (
+                    class_result.get("resolved")
+                    and class_result.get("symbol", {}).get("symbol_type") == "class"
+                ):
+                    class_id = class_result["target_symbol_id"]
+
+                    method_candidates = [
+                        (sym_id, sym_info)
+                        for sym_id, sym_info in self.symbol_table.items()
+                        if sym_id.startswith(class_id + ".")
+                        and sym_info.get("short_name") == target_name
+                    ]
+
+                    if len(method_candidates) == 1:
+                        method_id, method_info = method_candidates[0]
+
+                        return {
+                            "resolved": True,
+                            "target_symbol_id": method_id,
+                            "resolution_type": "instance_member",
+                            "symbol": method_info,
+                        }
+
+        # 2. Check local file scope
         local_key = (caller_file, target_name)
         if local_key in self.local_scope_map:
             resolved_id = self.local_scope_map[local_key][0]

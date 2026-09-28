@@ -94,6 +94,7 @@ class JSTSAnalyzer:
         classes: List[Dict[str, Any]] = []
         functions: List[Dict[str, Any]] = []
         calls: List[Dict[str, Any]] = []
+        variable_bindings: List[Dict[str, Any]] = []
 
         self._walk_analysis(
             tree.root_node,
@@ -101,6 +102,7 @@ class JSTSAnalyzer:
             classes=classes,
             functions=functions,
             calls=calls,
+            variable_bindings=variable_bindings,
             parent_symbol=None,
             current_symbol=None,
         )
@@ -112,6 +114,7 @@ class JSTSAnalyzer:
             "classes": classes,
             "functions": functions,
             "calls": calls,
+            "variable_bindings": variable_bindings,
         }
 
     def _walk_symbols(
@@ -216,6 +219,7 @@ class JSTSAnalyzer:
         classes: List[Dict[str, Any]],
         functions: List[Dict[str, Any]],
         calls: List[Dict[str, Any]],
+        variable_bindings: List[Dict[str, Any]],
         parent_symbol: Optional[str],
         current_symbol: Optional[str],
     ) -> None:
@@ -290,6 +294,12 @@ class JSTSAnalyzer:
 
                 current_symbol = method_name
 
+        elif node_type == "variable_declarator":
+            self._extract_variable_binding(
+                node,
+                variable_bindings,
+            )
+
         elif node_type == "call_expression":
             self._extract_call(
                 node,
@@ -307,6 +317,7 @@ class JSTSAnalyzer:
                 classes=classes,
                 functions=functions,
                 calls=calls,
+                variable_bindings=variable_bindings,
                 parent_symbol=child_parent,
                 current_symbol=child_current,
             )
@@ -377,13 +388,52 @@ class JSTSAnalyzer:
         if not target_name:
             return
 
+        receiver_name = None
+
+        if function_node.type in {
+            "member_expression",
+            "optional_member_expression",
+        }:
+            object_node = function_node.child_by_field_name("object")
+
+            if object_node is not None and object_node.type == "identifier":
+                receiver_name = self._node_text(object_node)
+
         calls.append(
             {
                 "target_name": target_name,
+                "receiver_name": receiver_name,
                 "caller_symbol": current_symbol,
                 "file_path": str(self.file_path),
                 "start_line": self._line(node),
                 "end_line": self._end_line(node),
+            }
+        )
+
+    def _extract_variable_binding(
+        self,
+        node,
+        variable_bindings: List[Dict[str, Any]],
+    ) -> None:
+        name_node = node.child_by_field_name("name")
+        value_node = node.child_by_field_name("value")
+
+        if name_node is None or value_node is None:
+            return
+
+        if value_node.type != "new_expression":
+            return
+
+        constructor_node = value_node.child_by_field_name("constructor")
+
+        if constructor_node is None or constructor_node.type != "identifier":
+            return
+
+        variable_bindings.append(
+            {
+                "variable_name": self._node_text(name_node),
+                "class_name": self._node_text(constructor_node),
+                "file_path": str(self.file_path),
             }
         )
 
