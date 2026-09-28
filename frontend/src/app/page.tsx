@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import RepoIndexer from "@/components/RepoIndexer";
+import { api } from "@/lib/api";
 import { 
   Activity, 
   GitBranch, 
@@ -18,8 +19,7 @@ export default function Home() {
   const [showScanner, setShowScanner] = useState<boolean>(false);
 
   useEffect(() => {
-    fetch("http://127.0.0.1:8000/api/v1/health")
-      .then((res) => res.json())
+    api.getHealth()
       .then((data) => setHealthStatus(data.status === "ok" || data.status === "healthy" ? "Healthy" : "Degraded"))
       .catch(() => setHealthStatus("Offline"));
   }, []);
