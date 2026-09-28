@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import RepoIndexer from "@/components/RepoIndexer";
+import ASTDependencyGraph from "@/components/ASTDependencyGraph";
 import { api, IndexRepoResponse } from "@/lib/api";
 import { 
   Activity, 
@@ -17,6 +18,7 @@ import {
 export default function Home() {
   const [healthStatus, setHealthStatus] = useState<string>("Checking...");
   const [showScanner, setShowScanner] = useState<boolean>(false);
+  const [showGraph, setShowGraph] = useState<boolean>(false);
   const [indexStats, setIndexStats] = useState<IndexRepoResponse | null>(null);
 
   useEffect(() => {
@@ -92,6 +94,30 @@ export default function Home() {
         </div>
       </header>
 
+      {showGraph && (
+        <section className="mb-10">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-bold text-slate-200">
+                Dependency Graph
+              </h2>
+              <p className="text-sm text-slate-400 mt-1">
+                Explore relationships discovered by the code analysis pipeline.
+              </p>
+            </div>
+
+            <button
+              onClick={() => setShowGraph(false)}
+              className="text-xs text-slate-400 hover:text-slate-200 transition-colors"
+            >
+              Close
+            </button>
+          </div>
+
+          <ASTDependencyGraph />
+        </section>
+      )}
+
       {showScanner && (
         <section className="mb-10">
           <div className="flex items-center justify-between mb-4">
@@ -149,6 +175,13 @@ export default function Home() {
                 onClick={() => {
                   if (action.title === "Repository Scanner") {
                     setShowScanner(true);
+                    setShowGraph(false);
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }
+
+                  if (action.title === "Dependency Graph") {
+                    setShowGraph(true);
+                    setShowScanner(false);
                     window.scrollTo({ top: 0, behavior: "smooth" });
                   }
                 }}

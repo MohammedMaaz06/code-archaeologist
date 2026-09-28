@@ -13,50 +13,79 @@ import {
   EdgeChange,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import { api } from "@/lib/api";
 
 export default function ASTDependencyGraph() {
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
   const [loading, setLoading] = useState(true);
-
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+
     const fetchGraphData = async () => {
       try {
-        const res = await fetch(`${API_URL}/api/graph`);
-        const data = await res.json();
-        if (data.nodes && data.edges) {
-          setNodes(data.nodes);
-          setEdges(data.edges);
-        }
+        setLoading(true);
+        setError(null);
+
+        const data = await api.exportGraph();
+
+        if (cancelled) return;
+
+        const flowNodes: Node[] = data.nodes.map((node, index) => ({
+          id: node.id,
+          data: {
+            label: node.label || node.id,
+          },
+          position: {
+            x: (index % 4) * 220,
+            y: Math.floor(index / 4) * 140,
+          },
+        }));
+
+        const flowEdges: Edge[] = data.edges.map((edge) => ({
+          id: edge.id,
+          source: edge.source,
+          target: edge.target,
+          label: edge.relationship,
+          animated: edge.relationship === "calls",
+        }));
+
+        setNodes(flowNodes);
+        setEdges(flowEdges);
       } catch (err) {
-        setNodes([
-          { id: "1", data: { label: "main.py" }, position: { x: 250, y: 20 } },
-          { id: "2", data: { label: "api_ast.py" }, position: { x: 100, y: 130 } },
-          { id: "3", data: { label: "api_explain.py" }, position: { x: 400, y: 130 } },
-          { id: "4", data: { label: "Ollama (LLM)" }, position: { x: 400, y: 250 } },
-        ]);
-        setEdges([
-          { id: "e1-2", source: "1", target: "2", animated: true },
-          { id: "e1-3", source: "1", target: "3", animated: true },
-          { id: "e3-4", source: "3", target: "4", animated: true },
-        ]);
+        if (!cancelled) {
+          console.error("Failed to load dependency graph:", err);
+          setError(
+            err instanceof Error
+              ? err.message
+              : "Failed to load dependency graph"
+          );
+          setNodes([]);
+          setEdges([]);
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     fetchGraphData();
-  }, [API_URL]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const onNodesChange = useCallback(
-    (changes: NodeChange[]) => setNodes((nds) => applyNodeChanges(changes, nds)),
+    (changes: NodeChange[]) =>
+      setNodes((nds) => applyNodeChanges(changes, nds)),
     []
   );
 
   const onEdgesChange = useCallback(
-    (changes: EdgeChange[]) => setEdges((eds) => applyEdgeChanges(changes, eds)),
+    (changes: EdgeChange[]) =>
+      setEdges((eds) => applyEdgeChanges(changes, eds)),
     []
   );
 
@@ -65,12 +94,13 @@ export default function ASTDependencyGraph() {
       <div className="border-b border-slate-800 pb-3 flex justify-between items-center">
         <div>
           <h3 className="font-bold text-slate-100 text-base flex items-center gap-2">
-            <span>🕸️</span> AST & Module Dependency Flow
+            <span>???</span> AST & Module Dependency Flow
           </h3>
           <p className="text-xs text-slate-400 mt-0.5">
-            Interactive node graph illustrating structural imports and execution pathways.
+            Interactive graph generated from the backend code knowledge graph.
           </p>
         </div>
+
         <span className="text-xs font-mono bg-indigo-950 border border-indigo-800 text-indigo-300 px-2.5 py-1 rounded-md">
           {nodes.length} Nodes / {edges.length} Edges
         </span>
@@ -80,6 +110,24 @@ export default function ASTDependencyGraph() {
         {loading ? (
           <div className="flex items-center justify-center h-full text-xs text-blue-400 font-mono animate-pulse">
             Loading dependency graph...
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center h-full text-center px-6">
+            <p className="text-sm text-rose-400 font-semibold">
+              Unable to load dependency graph
+            </p>
+            <p className="text-xs text-slate-500 mt-2 max-w-lg">
+              {error}
+            </p>
+          </div>
+        ) : nodes.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-center px-6">
+            <p className="text-sm text-slate-300 font-semibold">
+              No graph data available
+            </p>
+            <p className="text-xs text-slate-500 mt-2">
+              Run a repository scan to generate the code knowledge graph.
+            </p>
           </div>
         ) : (
           <ReactFlow

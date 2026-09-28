@@ -1,4 +1,4 @@
-﻿const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";
 
 export interface ExtractedSymbol {
   name: string;
@@ -111,4 +111,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(params),
     }),
+
+  exportGraph: () =>
+    fetchAPI<{ nodes: GraphNodeResponse[]; edges: GraphEdgeResponse[] }>("/graph/export"),
 };
