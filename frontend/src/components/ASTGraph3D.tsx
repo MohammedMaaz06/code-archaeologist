@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { api } from "@/lib/api";
 
 interface NodeData {
   id: string;
@@ -24,8 +25,7 @@ export default function ASTGraph3D() {
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    fetch("http://localhost:8000/api/v1/graph/export")
-      .then((res) => res.json())
+    api.exportGraph()
       .then((data) => {
         setGraphData(data);
         setLoading(false);
@@ -38,8 +38,7 @@ export default function ASTGraph3D() {
 
   const handleNodeClick = (nodeId: string) => {
     setSelectedNode(nodeId);
-    fetch(`http://localhost:8000/api/v1/graph/blast-radius?symbol_id=${encodeURIComponent(nodeId)}`)
-      .then((res) => res.json())
+    api.getBlastRadius(nodeId)
       .then((data) => setBlastRadius(data))
       .catch((err) => console.error("Error fetching blast radius:", err));
   };
