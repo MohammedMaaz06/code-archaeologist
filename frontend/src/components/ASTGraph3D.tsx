@@ -25,9 +25,12 @@ export default function ASTGraph3D() {
   const [blastRadiusLoading, setBlastRadiusLoading] = useState<boolean>(false);
   const [blastRadiusError, setBlastRadiusError] = useState<string | null>(null);
   const [blastRadiusDepth, setBlastRadiusDepth] = useState<number>(3);
+  const [graphError, setGraphError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
+    setGraphError(null);
+
     api.exportGraph()
       .then((data) => {
         setGraphData(data);
@@ -35,6 +38,7 @@ export default function ASTGraph3D() {
       })
       .catch((err) => {
         console.error("Failed to load graph data:", err);
+        setGraphError("Failed to load the code knowledge graph.");
         setLoading(false);
       });
   }, []);
@@ -68,6 +72,15 @@ export default function ASTGraph3D() {
 
   if (loading) {
     return <div className="p-4 text-slate-400">Loading Code Knowledge Graph...</div>;
+  }
+
+  if (graphError) {
+    return (
+      <div className="p-4 rounded-lg border border-rose-900 bg-slate-900 text-rose-400">
+        <p className="text-sm font-semibold">Unable to load graph</p>
+        <p className="text-xs text-slate-500 mt-1">{graphError}</p>
+      </div>
+    );
   }
 
   return (
