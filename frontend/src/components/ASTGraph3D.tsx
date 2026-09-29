@@ -103,20 +103,29 @@ export default function ASTGraph3D() {
         <div className="col-span-2 border border-slate-700 bg-slate-950 p-4 rounded overflow-y-auto">
           <h3 className="text-sm font-semibold mb-2 text-slate-400">Indexed Graph Nodes ({graphData.nodes.length})</h3>
           <ul className="space-y-1">
-            {graphData.nodes.map((node) => (
-              <li
-                key={node.id}
-                onClick={() => handleNodeClick(node.id)}
-                className={`p-2 rounded cursor-pointer text-sm flex justify-between items-center transition-colors ${
-                  selectedNode === node.id ? "bg-cyan-900 border border-cyan-500" : "hover:bg-slate-800"
-                }`}
-              >
-                <span className="font-mono text-xs truncate max-w-[300px]">{node.id}</span>
-                <span className="text-xs px-2 py-0.5 rounded bg-slate-800 text-cyan-300">
-                  {node.node_type || "Node"}
-                </span>
+            {graphData.nodes.length === 0 ? (
+              <li className="rounded border border-slate-800 bg-slate-900 p-4 text-center">
+                <p className="text-sm text-slate-400">No indexed graph nodes found.</p>
+                <p className="text-xs text-slate-500 mt-1">
+                  Scan a repository to build the code knowledge graph.
+                </p>
               </li>
-            ))}
+            ) : (
+              graphData.nodes.map((node) => (
+                <li
+                  key={node.id}
+                  onClick={() => handleNodeClick(node.id)}
+                  className={`p-2 rounded cursor-pointer text-sm flex justify-between items-center transition-colors ${
+                    selectedNode === node.id ? "bg-cyan-900 border border-cyan-500" : "hover:bg-slate-800"
+                  }`}
+                >
+                  <span className="font-mono text-xs truncate max-w-[300px]">{node.id}</span>
+                  <span className="text-xs px-2 py-0.5 rounded bg-slate-800 text-cyan-300">
+                    {node.node_type || "Node"}
+                  </span>
+                </li>
+              ))
+            )}
           </ul>
         </div>
 
