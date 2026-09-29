@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import RepoIndexer from "@/components/RepoIndexer";
 import ASTDependencyGraph from "@/components/ASTDependencyGraph";
+import ASTGraph3D from "@/components/ASTGraph3D";
 import { api, IndexRepoResponse } from "@/lib/api";
 import { 
   Activity, 
@@ -19,6 +20,7 @@ export default function Home() {
   const [healthStatus, setHealthStatus] = useState<string>("Checking...");
   const [showScanner, setShowScanner] = useState<boolean>(false);
   const [showGraph, setShowGraph] = useState<boolean>(false);
+  const [showImpact, setShowImpact] = useState<boolean>(false);
   const [indexStats, setIndexStats] = useState<IndexRepoResponse | null>(null);
 
   useEffect(() => {
@@ -93,6 +95,30 @@ export default function Home() {
           </button>
         </div>
       </header>
+
+      {showImpact && (
+        <section className="mb-10">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-bold text-slate-200">
+                Impact Analysis
+              </h2>
+              <p className="text-sm text-slate-400 mt-1">
+                Explore code change impact and blast radius.
+              </p>
+            </div>
+
+            <button
+              onClick={() => setShowImpact(false)}
+              className="text-xs text-slate-400 hover:text-slate-200 transition-colors"
+            >
+              Close
+            </button>
+          </div>
+
+          <ASTGraph3D />
+        </section>
+      )}
 
       {showGraph && (
         <section className="mb-10">
@@ -176,12 +202,21 @@ export default function Home() {
                   if (action.title === "Repository Scanner") {
                     setShowScanner(true);
                     setShowGraph(false);
+                    setShowImpact(false);
                     window.scrollTo({ top: 0, behavior: "smooth" });
                   }
 
                   if (action.title === "Dependency Graph") {
                     setShowGraph(true);
                     setShowScanner(false);
+                    setShowImpact(false);
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }
+
+                  if (action.title === "Impact Analysis") {
+                    setShowImpact(true);
+                    setShowScanner(false);
+                    setShowGraph(false);
                     window.scrollTo({ top: 0, behavior: "smooth" });
                   }
                 }}
