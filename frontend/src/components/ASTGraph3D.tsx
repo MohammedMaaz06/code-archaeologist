@@ -24,6 +24,7 @@ export default function ASTGraph3D() {
   const [blastRadius, setBlastRadius] = useState<any>(null);
   const [blastRadiusLoading, setBlastRadiusLoading] = useState<boolean>(false);
   const [blastRadiusError, setBlastRadiusError] = useState<string | null>(null);
+  const [blastRadiusDepth, setBlastRadiusDepth] = useState<number>(3);
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
@@ -38,19 +39,31 @@ export default function ASTGraph3D() {
       });
   }, []);
 
-  const handleNodeClick = (nodeId: string) => {
-    setSelectedNode(nodeId);
+  const analyzeBlastRadius = (nodeId: string, depth: number) => {
     setBlastRadius(null);
     setBlastRadiusError(null);
     setBlastRadiusLoading(true);
 
-    api.getBlastRadius(nodeId)
+    api.getBlastRadius(nodeId, depth)
       .then((data) => setBlastRadius(data))
       .catch((err) => {
         console.error("Error fetching blast radius:", err);
         setBlastRadiusError("Failed to calculate blast radius.");
       })
       .finally(() => setBlastRadiusLoading(false));
+  };
+
+  const handleNodeClick = (nodeId: string) => {
+    setSelectedNode(nodeId);
+    analyzeBlastRadius(nodeId, blastRadiusDepth);
+  };
+
+  const handleBlastRadiusDepthChange = (depth: number) => {
+    setBlastRadiusDepth(depth);
+
+    if (selectedNode) {
+      analyzeBlastRadius(selectedNode, depth);
+    }
   };
 
   if (loading) {
@@ -85,7 +98,23 @@ export default function ASTGraph3D() {
 
         {/* Selected Node Blast Radius Side Panel */}
         <div className="border border-slate-700 bg-slate-950 p-4 rounded overflow-y-auto">
-          <h3 className="text-sm font-semibold mb-2 text-slate-400">Blast Radius Analysis</h3>
+          <div className="flex items-center justify-between mb-3 gap-3">
+            <h3 className="text-sm font-semibold text-slate-400">Blast Radius Analysis</h3>
+            <label className="flex items-center gap-2 text-xs text-slate-500">
+              Depth
+              <select
+                value={blastRadiusDepth}
+                onChange={(event) => handleBlastRadiusDepthChange(Number(event.target.value))}
+                className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-slate-300"
+              >
+                {Array.from({ length: 10 }, (_, index) => index + 1).map((depth) => (
+                  <option key={depth} value={depth}>
+                    {depth}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
           {selectedNode ? (
             <div>
               <p className="text-xs font-mono text-cyan-300 break-all mb-3">{selectedNode}</p>
