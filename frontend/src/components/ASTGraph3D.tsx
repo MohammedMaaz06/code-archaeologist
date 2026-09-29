@@ -100,11 +100,24 @@ export default function ASTGraph3D() {
                     <span className="text-lg font-bold text-rose-400">{blastRadius.total_impacted}</span>
                   </div>
                   <div>
-                    <span className="text-xs text-slate-400 block mb-1">Affected Downstream / Upstream Nodes:</span>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs text-slate-400">Affected Downstream / Upstream Nodes</span>
+                      <span className="text-xs text-slate-500">
+                        {blastRadius.affected_nodes?.length ?? 0}
+                      </span>
+                    </div>
                     <ul className="space-y-1">
-                      {blastRadius.affected_nodes?.map((affected: string) => (
-                        <li key={affected} className="text-xs font-mono bg-slate-900 p-1 rounded text-slate-300 break-all">
-                          {affected}
+                      {blastRadius.affected_nodes?.map((affected: string, index: number) => (
+                        <li
+                          key={affected}
+                          className="text-xs bg-slate-900 p-2 rounded border border-slate-800 flex items-start gap-2"
+                        >
+                          <span className="text-slate-500 font-mono min-w-5">
+                            {index + 1}.
+                          </span>
+                          <span className="font-mono text-slate-300 break-all">
+                            {affected}
+                          </span>
                         </li>
                       ))}
                     </ul>
