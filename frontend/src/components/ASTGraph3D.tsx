@@ -28,7 +28,8 @@ export default function ASTGraph3D() {
   const [graphError, setGraphError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
-  useEffect(() => {
+  const loadGraph = () => {
+    setLoading(true);
     setGraphError(null);
 
     api.exportGraph()
@@ -41,6 +42,10 @@ export default function ASTGraph3D() {
         setGraphError("Failed to load the code knowledge graph.");
         setLoading(false);
       });
+  };
+
+  useEffect(() => {
+    loadGraph();
   }, []);
 
   const analyzeBlastRadius = (nodeId: string, depth: number) => {
@@ -79,6 +84,12 @@ export default function ASTGraph3D() {
       <div className="p-4 rounded-lg border border-rose-900 bg-slate-900 text-rose-400">
         <p className="text-sm font-semibold">Unable to load graph</p>
         <p className="text-xs text-slate-500 mt-1">{graphError}</p>
+        <button
+          onClick={loadGraph}
+          className="mt-3 rounded border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs text-slate-300 transition-colors hover:bg-slate-700 hover:text-white"
+        >
+          Retry
+        </button>
       </div>
     );
   }
