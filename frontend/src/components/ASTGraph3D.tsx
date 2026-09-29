@@ -22,6 +22,8 @@ export default function ASTGraph3D() {
   });
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [blastRadius, setBlastRadius] = useState<any>(null);
+  const [blastRadiusLoading, setBlastRadiusLoading] = useState<boolean>(false);
+  const [blastRadiusError, setBlastRadiusError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
@@ -38,9 +40,17 @@ export default function ASTGraph3D() {
 
   const handleNodeClick = (nodeId: string) => {
     setSelectedNode(nodeId);
+    setBlastRadius(null);
+    setBlastRadiusError(null);
+    setBlastRadiusLoading(true);
+
     api.getBlastRadius(nodeId)
       .then((data) => setBlastRadius(data))
-      .catch((err) => console.error("Error fetching blast radius:", err));
+      .catch((err) => {
+        console.error("Error fetching blast radius:", err);
+        setBlastRadiusError("Failed to calculate blast radius.");
+      })
+      .finally(() => setBlastRadiusLoading(false));
   };
 
   if (loading) {
@@ -79,7 +89,11 @@ export default function ASTGraph3D() {
           {selectedNode ? (
             <div>
               <p className="text-xs font-mono text-cyan-300 break-all mb-3">{selectedNode}</p>
-              {blastRadius ? (
+              {blastRadiusLoading ? (
+                <p className="text-xs text-slate-500">Calculating impact...</p>
+              ) : blastRadiusError ? (
+                <p className="text-xs text-rose-400">{blastRadiusError}</p>
+              ) : blastRadius ? (
                 <div className="space-y-3">
                   <div className="bg-slate-900 p-2 rounded border border-slate-800">
                     <span className="text-xs text-slate-400 block">Total Impacted Symbols</span>
@@ -97,9 +111,8 @@ export default function ASTGraph3D() {
                   </div>
                 </div>
               ) : (
-                <p className="text-xs text-slate-500">Calculating impact...</p>
-              )}
-            </div>
+                <p className="text-xs text-slate-500">Select a node to calculate its blast radius.</p>
+              )}</div>
           ) : (
             <p className="text-xs text-slate-500">Click a node on the left to calculate its change blast radius.</p>
           )}
