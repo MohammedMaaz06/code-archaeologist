@@ -95,6 +95,9 @@ export default function ASTGraph3D() {
       node.node_type?.toLowerCase().includes(query)
     );
   });
+  const selectedNodeData = selectedNode
+    ? graphData.nodes.find((node) => node.id === selectedNode)
+    : undefined;
   if (loading) {
     return <div className="p-4 text-slate-400">Loading Code Knowledge Graph...</div>;
   }
@@ -200,7 +203,20 @@ export default function ASTGraph3D() {
           </div>
           {selectedNode ? (
             <div>
-              <p className="text-xs font-mono text-cyan-300 break-all mb-3">{selectedNode}</p>
+              <div className="mb-3 rounded border border-slate-800 bg-slate-900 p-3">
+                <p className="text-sm font-semibold text-slate-200 break-all">
+                  {selectedNodeData?.label || selectedNode}
+                </p>
+                <div className="mt-1 flex items-center gap-2">
+                  <span className="text-xs text-slate-500">Type</span>
+                  <span className="text-xs rounded bg-slate-800 px-2 py-0.5 text-cyan-300">
+                    {selectedNodeData?.node_type || "Node"}
+                  </span>
+                </div>
+                <p className="mt-2 text-xs font-mono text-slate-500 break-all">
+                  {selectedNode}
+                </p>
+              </div>
               {blastRadiusLoading ? (
                 <p className="text-xs text-slate-500">Calculating impact...</p>
               ) : blastRadiusError ? (
