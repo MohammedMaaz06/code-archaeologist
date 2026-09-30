@@ -21,6 +21,7 @@ export default function ASTGraph3D() {
     edges: [],
   });
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
+  const [nodeSearch, setNodeSearch] = useState<string>("");
   const [blastRadius, setBlastRadius] = useState<any>(null);
   const [blastRadiusLoading, setBlastRadiusLoading] = useState<boolean>(false);
   const [blastRadiusError, setBlastRadiusError] = useState<string | null>(null);
@@ -75,6 +76,19 @@ export default function ASTGraph3D() {
     }
   };
 
+  const filteredNodes = graphData.nodes.filter((node) => {
+    const query = nodeSearch.trim().toLowerCase();
+
+    if (!query) {
+      return true;
+    }
+
+    return (
+      node.id.toLowerCase().includes(query) ||
+      node.label?.toLowerCase().includes(query) ||
+      node.node_type?.toLowerCase().includes(query)
+    );
+  });
   if (loading) {
     return <div className="p-4 text-slate-400">Loading Code Knowledge Graph...</div>;
   }
@@ -101,7 +115,20 @@ export default function ASTGraph3D() {
       <div className="grid grid-cols-3 gap-4 h-[500px]">
         {/* Graph Node List / Visual Canvas */}
         <div className="col-span-2 border border-slate-700 bg-slate-950 p-4 rounded overflow-y-auto">
-          <h3 className="text-sm font-semibold mb-2 text-slate-400">Indexed Graph Nodes ({graphData.nodes.length})</h3>
+          <div className="flex items-center justify-between mb-2 gap-3">
+            <h3 className="text-sm font-semibold text-slate-400">
+              Indexed Graph Nodes ({filteredNodes.length}/{graphData.nodes.length})
+            </h3>
+          </div>
+
+          <input
+            type="text"
+            value={nodeSearch}
+            onChange={(event) => setNodeSearch(event.target.value)}
+            placeholder="Search nodes..."
+            className="w-full mb-3 rounded border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-slate-300 placeholder:text-slate-600 focus:border-cyan-600 focus:outline-none"
+          />
+
           <ul className="space-y-1">
             {graphData.nodes.length === 0 ? (
               <li className="rounded border border-slate-800 bg-slate-900 p-4 text-center">
@@ -110,8 +137,15 @@ export default function ASTGraph3D() {
                   Scan a repository to build the code knowledge graph.
                 </p>
               </li>
+            ) : filteredNodes.length === 0 ? (
+              <li className="rounded border border-slate-800 bg-slate-900 p-4 text-center">
+                <p className="text-sm text-slate-400">No matching nodes found.</p>
+                <p className="text-xs text-slate-500 mt-1">
+                  Try a different search term.
+                </p>
+              </li>
             ) : (
-              graphData.nodes.map((node) => (
+              filteredNodes.map((node) => (
                 <li
                   key={node.id}
                   onClick={() => handleNodeClick(node.id)}
