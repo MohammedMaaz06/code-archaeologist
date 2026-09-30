@@ -75,6 +75,12 @@ export default function ASTGraph3D() {
       analyzeBlastRadius(selectedNode, depth);
     }
   };
+  const handleClearSelection = () => {
+    setSelectedNode(null);
+    setBlastRadius(null);
+    setBlastRadiusError(null);
+    setBlastRadiusLoading(false);
+  };
 
   const filteredNodes = graphData.nodes.filter((node) => {
     const query = nodeSearch.trim().toLowerCase();
@@ -167,7 +173,16 @@ export default function ASTGraph3D() {
         <div className="border border-slate-700 bg-slate-950 p-4 rounded overflow-y-auto">
           <div className="flex items-center justify-between mb-3 gap-3">
             <h3 className="text-sm font-semibold text-slate-400">Blast Radius Analysis</h3>
-            <label className="flex items-center gap-2 text-xs text-slate-500">
+            <div className="flex items-center gap-2">
+              {selectedNode && (
+                <button
+                  onClick={handleClearSelection}
+                  className="rounded border border-slate-700 px-2 py-1 text-xs text-slate-500 transition-colors hover:bg-slate-800 hover:text-slate-300"
+                >
+                  Clear
+                </button>
+              )}
+              <label className="flex items-center gap-2 text-xs text-slate-500">
               Depth
               <select
                 value={blastRadiusDepth}
@@ -180,7 +195,8 @@ export default function ASTGraph3D() {
                   </option>
                 ))}
               </select>
-            </label>
+              </label>
+            </div>
           </div>
           {selectedNode ? (
             <div>
