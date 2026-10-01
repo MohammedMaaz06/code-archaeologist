@@ -29,9 +29,9 @@ jobs:
 
       - name: Run Pytest
         env:
-          PYTHONPATH: backend
+          PYTHONPATH: .
         run: |
-          pytest backend/tests
+          pytest -q -c backend/pytest.ini
 
   frontend-checks:
     name: Frontend Lint & Build
