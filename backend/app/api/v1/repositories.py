@@ -3,7 +3,8 @@ from typing import List, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from app.services.git_service import GitService
-from app.services.repo_scanner import RepoScanner
+from app.services.repository_analysis_service import RepositoryAnalysisService
+from app.api.v1.graph import graph_service
 
 router = APIRouter()
 
@@ -44,8 +45,11 @@ async def scan_repository(request: ScanRepoRequest):
         raise HTTPException(status_code=400, detail=f"Invalid repository path: {request.path}")
 
     try:
-        scanner = RepoScanner(str(repo_path))
-        scanned_files = scanner.scan()
+        analysis_service = RepositoryAnalysisService(str(repo_path))
+        analysis_service.graph_service = graph_service
+        analysis_service.analyze()
+
+        scanned_files = analysis_service.files
         git_info = GitService.get_git_info(repo_path)
 
         total_loc = sum(f.loc for f in scanned_files)
