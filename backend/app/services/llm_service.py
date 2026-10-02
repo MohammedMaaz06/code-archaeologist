@@ -1,3 +1,4 @@
+import difflib
 import json
 import urllib.request
 from typing import Dict, Any, Optional
@@ -92,9 +93,30 @@ class LLMService:
 
                             corrected_code = "\n".join(lines).strip()
 
+                        original_lines = [
+                            f"{line}\n"
+                            for line in source_code.splitlines()
+                        ]
+                        corrected_lines = [
+                            f"{line}\n"
+                            for line in corrected_code.splitlines()
+                        ]
+
+                        diff = "".join(
+                            difflib.unified_diff(
+                                original_lines,
+                                corrected_lines,
+                                fromfile="original",
+                                tofile="corrected",
+                            )
+                        )
+
                         return {
                             "status": "success",
+                            "original_code": source_code,
                             "corrected_code": corrected_code,
+                            "diff": diff,
+                            "changed": source_code != corrected_code,
                             "model": "codellama",
                         }
 
@@ -103,7 +125,10 @@ class LLMService:
 
         return {
             "status": "unavailable",
+            "original_code": source_code,
             "corrected_code": None,
+            "diff": "",
+            "changed": False,
             "model": "codellama",
         }
 
