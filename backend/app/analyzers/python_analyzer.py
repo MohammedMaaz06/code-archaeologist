@@ -45,7 +45,8 @@ class PythonASTAnalyzer:
 
     def _parse(self):
         try:
-            return ast.parse(self.source_code, filename=str(self.file_path))
+            source_code = self.source_code.lstrip("\ufeff")
+            return ast.parse(source_code, filename=str(self.file_path))
         except SyntaxError:
             return None
 
