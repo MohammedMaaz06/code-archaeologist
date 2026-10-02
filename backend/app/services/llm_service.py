@@ -35,6 +35,78 @@ class LLMService:
 
         return self._fallback_summary(context_digest)
 
+    def generate_code_fix(
+        self,
+        source_code: str,
+        issue: str,
+        language: str = "python",
+        context: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Generate a corrected version of source code using the local LLM."""
+        prompt = (
+            "You are a careful software engineer fixing an existing codebase.\n\n"
+            f"Language: {language}\n"
+            f"Issue: {issue}\n\n"
+            "Code to fix:\n"
+            "```\n"
+            f"{source_code}\n"
+            "```\n\n"
+        )
+
+        if context:
+            prompt += f"Additional context:\n{context}\n\n"
+
+        prompt += (
+            "Return the corrected code only. "
+            "Do not include Markdown fences, explanations, or commentary. "
+            "Preserve the existing behavior except where the issue requires a change."
+        )
+
+        try:
+            payload = json.dumps({
+                "model": "codellama",
+                "prompt": prompt,
+                "stream": False
+            }).encode("utf-8")
+
+            req = urllib.request.Request(
+                self.api_url,
+                data=payload,
+                headers={"Content-Type": "application/json"}
+            )
+
+            with urllib.request.urlopen(req, timeout=10) as response:
+                if response.status == 200:
+                    data = json.loads(response.read().decode("utf-8"))
+                    corrected_code = data.get("response", "").strip()
+
+                    if corrected_code:
+                        if corrected_code.startswith("```"):
+                            lines = corrected_code.splitlines()
+
+                            if lines and lines[0].strip().startswith("```"):
+                                lines = lines[1:]
+
+                            if lines and lines[-1].strip() == "```":
+                                lines = lines[:-1]
+
+                            corrected_code = "\n".join(lines).strip()
+
+                        return {
+                            "status": "success",
+                            "corrected_code": corrected_code,
+                            "model": "codellama",
+                        }
+
+        except Exception as e:
+            logger.info(f"Local LLM code-fix service unavailable ({str(e)}).")
+
+        return {
+            "status": "unavailable",
+            "corrected_code": None,
+            "model": "codellama",
+        }
+
     def _build_prompt(self, context_digest: Dict[str, Any]) -> str:
         query = context_digest.get("query", "Code Analysis")
         chunks = context_digest.get("matched_chunks", [])
