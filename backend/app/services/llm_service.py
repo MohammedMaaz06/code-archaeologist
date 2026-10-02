@@ -1,3 +1,4 @@
+import ast
 import difflib
 import json
 import urllib.request
@@ -35,6 +36,32 @@ class LLMService:
             logger.info(f"Local LLM service unavailable ({str(e)}). Falling back to deterministic context summary.")
 
         return self._fallback_summary(context_digest)
+
+    def _validate_generated_code(
+        self,
+        code: str,
+        language: str,
+    ) -> Dict[str, Any]:
+        """Validate generated code when a parser is available."""
+        normalized_language = language.strip().lower()
+
+        if normalized_language in {"python", "py"}:
+            try:
+                ast.parse(code)
+                return {
+                    "validation_status": "passed",
+                    "validation_message": "Python syntax is valid.",
+                }
+            except SyntaxError as exc:
+                return {
+                    "validation_status": "failed",
+                    "validation_message": f"Python syntax error: {exc}",
+                }
+
+        return {
+            "validation_status": "skipped",
+            "validation_message": f"No built-in validator configured for {language}.",
+        }
 
     def generate_code_fix(
         self,
@@ -111,13 +138,25 @@ class LLMService:
                             )
                         )
 
+                        validation = self._validate_generated_code(
+                            corrected_code,
+                            language,
+                        )
+
+                        status = (
+                            "validation_failed"
+                            if validation["validation_status"] == "failed"
+                            else "success"
+                        )
+
                         return {
-                            "status": "success",
+                            "status": status,
                             "original_code": source_code,
                             "corrected_code": corrected_code,
                             "diff": diff,
                             "changed": source_code != corrected_code,
                             "model": "codellama",
+                            **validation,
                         }
 
         except Exception as e:
