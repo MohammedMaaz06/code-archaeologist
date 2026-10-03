@@ -110,10 +110,15 @@ async def code_fix(request: CodeFixRequest):
             context=request.context,
         )
 
+        original_sha256 = hashlib.sha256(
+            source_code.encode("utf-8")
+        ).hexdigest()
+
         return {
             "issue": request.issue,
             "language": language,
             "file_path": request.file_path,
+            "original_sha256": original_sha256,
             **result,
         }
     except HTTPException:
