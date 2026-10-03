@@ -1,4 +1,5 @@
 from pathlib import Path
+import hashlib
 from typing import Dict, Any, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -119,6 +120,83 @@ async def code_fix(request: CodeFixRequest):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Code fix generation failed: {str(e)}")
+
+
+class ApplyCodeFixRequest(BaseModel):
+    repo_path: str
+    file_path: str
+    expected_sha256: str
+    corrected_code: str
+
+
+def _resolve_repository_file(repo_path: str, file_path: str) -> Path:
+    repo_root = Path(repo_path).resolve()
+    target_file = (repo_root / file_path).resolve()
+
+    if not repo_root.exists() or not repo_root.is_dir():
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid repository path: {repo_path}",
+        )
+
+    try:
+        target_file.relative_to(repo_root)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="file_path must point inside repo_path.",
+        )
+
+    if not target_file.exists() or not target_file.is_file():
+        raise HTTPException(
+            status_code=404,
+            detail=f"File not found: {file_path}",
+        )
+
+    return target_file
+
+
+@router.post("/apply-code-fix")
+async def apply_code_fix(request: ApplyCodeFixRequest) -> Dict[str, Any]:
+    target_file = _resolve_repository_file(
+        request.repo_path,
+        request.file_path,
+    )
+
+    current_code = target_file.read_text(
+        encoding="utf-8",
+        errors="ignore",
+    )
+
+    current_sha256 = hashlib.sha256(
+        current_code.encode("utf-8")
+    ).hexdigest()
+
+    if current_sha256 != request.expected_sha256:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "File changed since the fix was generated.",
+                "expected_sha256": request.expected_sha256,
+                "current_sha256": current_sha256,
+            },
+        )
+
+    target_file.write_text(
+        request.corrected_code,
+        encoding="utf-8",
+    )
+
+    new_sha256 = hashlib.sha256(
+        request.corrected_code.encode("utf-8")
+    ).hexdigest()
+
+    return {
+        "status": "applied",
+        "file_path": request.file_path,
+        "previous_sha256": current_sha256,
+        "new_sha256": new_sha256,
+    }
 
 
 @router.post("/refactor-risk")
