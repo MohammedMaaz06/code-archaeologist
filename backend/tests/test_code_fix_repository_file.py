@@ -1,3 +1,4 @@
+import hashlib
 import tempfile
 from pathlib import Path
 
@@ -57,6 +58,9 @@ def test_code_fix_reads_repository_file_and_blocks_path_traversal(monkeypatch):
         assert data["file_path"] == "math.py"
         assert data["language"] == "python"
         assert data["original_code"] == "def add(a, b):\n    return a - b\n"
+        assert data["original_sha256"] == hashlib.sha256(
+            data["original_code"].encode("utf-8")
+        ).hexdigest()
         assert data["status"] == "success"
 
         traversal = client.post(
