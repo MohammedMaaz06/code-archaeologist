@@ -132,6 +132,7 @@ class ApplyCodeFixRequest(BaseModel):
     file_path: str
     expected_sha256: str
     corrected_code: str
+    language: Optional[str] = None
 
 
 def _resolve_repository_file(repo_path: str, file_path: str) -> Path:
@@ -187,6 +188,36 @@ async def apply_code_fix(request: ApplyCodeFixRequest) -> Dict[str, Any]:
             },
         )
 
+    language = request.language
+
+    if not language:
+        language_map = {
+            ".py": "python",
+            ".js": "javascript",
+            ".jsx": "javascript",
+            ".ts": "typescript",
+            ".tsx": "typescript",
+        }
+        language = language_map.get(
+            target_file.suffix.lower(),
+            "text",
+        )
+
+    validation = llm_service._validate_generated_code(
+        request.corrected_code,
+        language,
+    )
+
+    if validation["validation_status"] == "failed":
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "message": "Corrected code failed validation.",
+                "validation_status": validation["validation_status"],
+                "validation_message": validation["validation_message"],
+            },
+        )
+
     target_file.write_text(
         request.corrected_code,
         encoding="utf-8",
@@ -201,6 +232,7 @@ async def apply_code_fix(request: ApplyCodeFixRequest) -> Dict[str, Any]:
         "file_path": request.file_path,
         "previous_sha256": current_sha256,
         "new_sha256": new_sha256,
+        **validation,
     }
 
 
