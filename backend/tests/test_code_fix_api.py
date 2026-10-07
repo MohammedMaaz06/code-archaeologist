@@ -115,3 +115,65 @@ def test_code_fix_returns_impact_analysis_for_repository_file(monkeypatch):
     ]
     assert data["impact_analysis"]["blast_radius_score"] == 2
     assert data["impact_analysis"]["risk_level"] == "LOW"
+
+def test_code_fix_passes_impact_context_to_llm(monkeypatch, tmp_path):
+    captured = {}
+
+    def fake_generate_code_fix(
+        source_code,
+        issue,
+        language="python",
+        context=None,
+    ):
+        captured["context"] = context
+        return {
+            "status": "success",
+            "corrected_code": "def add(a, b):\n    return a + b",
+            "model": "test-model",
+        }
+
+    def fake_analyze_impact(target_file):
+        return {
+            "target_file": target_file,
+            "direct_dependencies": ["utils.py"],
+            "affected_files": ["main.py", "service.py"],
+            "blast_radius_score": 2,
+            "risk_level": "MEDIUM",
+        }
+
+    monkeypatch.setattr(
+        llm.llm_service,
+        "generate_code_fix",
+        fake_generate_code_fix,
+    )
+    monkeypatch.setattr(
+        llm.archeology_engine,
+        "analyze_impact",
+        fake_analyze_impact,
+    )
+
+    target = Path(tmp_path) / "math.py"
+    target.write_text(
+        "def add(a, b):\n    return a - b\n",
+        encoding="utf-8",
+    )
+
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/v1/code-fix",
+        json={
+            "repo_path": str(tmp_path),
+            "file_path": "math.py",
+            "issue": "The function should add the values.",
+            "context": "Preserve the public function signature.",
+        },
+    )
+
+    assert response.status_code == 200
+    assert captured["context"] is not None
+    assert "Repository impact analysis for the target file:" in captured["context"]
+    assert '"blast_radius_score": 2' in captured["context"]
+    assert '"risk_level": "MEDIUM"' in captured["context"]
+    assert '"affected_files": [' in captured["context"]
+    assert "Preserve the public function signature." in captured["context"]
