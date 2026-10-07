@@ -1,5 +1,6 @@
 from pathlib import Path
 import hashlib
+import json
 from typing import Dict, Any, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -103,29 +104,42 @@ async def code_fix(request: CodeFixRequest):
                 detail="Provide source_code or repo_path with file_path.",
             )
 
-        result = llm_service.generate_code_fix(
-            source_code=source_code,
-            issue=request.issue,
-            language=language,
-            context=request.context,
-        )
-
-        original_sha256 = hashlib.sha256(
-            source_code.encode("utf-8")
-        ).hexdigest()
-
         impact_analysis = None
+        llm_context = request.context
+
         if request.repo_path and request.file_path:
             try:
                 impact_analysis = archeology_engine.analyze_impact(
                     target_file=request.file_path
                 )
+
+                impact_context = (
+                    "Repository impact analysis for the target file:\n"
+                    f"{json.dumps(impact_analysis, indent=2)}"
+                )
+
+                if llm_context:
+                    llm_context = f"{llm_context}\n\n{impact_context}"
+                else:
+                    llm_context = impact_context
+
             except Exception:
                 impact_analysis = {
                     "target_file": request.file_path,
                     "available": False,
                     "message": "Impact analysis unavailable for this file.",
                 }
+
+        result = llm_service.generate_code_fix(
+            source_code=source_code,
+            issue=request.issue,
+            language=language,
+            context=llm_context,
+        )
+
+        original_sha256 = hashlib.sha256(
+            source_code.encode("utf-8")
+        ).hexdigest()
 
         response = {
             "issue": request.issue,
