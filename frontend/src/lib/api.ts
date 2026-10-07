@@ -23,6 +23,30 @@ export interface ExplanationResponse {
   explanation: string;
 }
 
+export interface CodeFixRequest {
+  issue: string;
+  source_code?: string;
+  repo_path?: string;
+  file_path?: string;
+  language?: string;
+  context?: string;
+}
+
+export interface CodeFixResult {
+  issue: string;
+  language: string;
+  file_path?: string | null;
+  status: string;
+  original_code?: string | null;
+  corrected_code?: string | null;
+  diff?: string;
+  changed?: boolean;
+  model?: string;
+  validation_status?: string;
+  validation_message?: string;
+  impact_analysis?: Record<string, unknown> | null;
+}
+
 export interface GraphNodeResponse {
   id: string;
   label: string;
@@ -104,6 +128,12 @@ export const api = {
     fetchAPI<ExplanationResponse>("/llm/explain", {
       method: "POST",
       body: JSON.stringify({ query, top_k: topK }),
+    }),
+
+  codeFix: (request: CodeFixRequest) =>
+    fetchAPI<CodeFixResult>("/llm/code-fix", {
+      method: "POST",
+      body: JSON.stringify(request),
     }),
 
   indexRepo: (params: IndexRepoRequest) =>
