@@ -114,13 +114,31 @@ async def code_fix(request: CodeFixRequest):
             source_code.encode("utf-8")
         ).hexdigest()
 
-        return {
+        impact_analysis = None
+        if request.repo_path and request.file_path:
+            try:
+                impact_analysis = archeology_engine.analyze_impact(
+                    target_file=request.file_path
+                )
+            except Exception:
+                impact_analysis = {
+                    "target_file": request.file_path,
+                    "available": False,
+                    "message": "Impact analysis unavailable for this file.",
+                }
+
+        response = {
             "issue": request.issue,
             "language": language,
             "file_path": request.file_path,
             "original_sha256": original_sha256,
             **result,
         }
+
+        if impact_analysis is not None:
+            response["impact_analysis"] = impact_analysis
+
+        return response
     except HTTPException:
         raise
     except Exception as e:
