@@ -5,6 +5,7 @@ from typing import Dict, Any, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from app.services.llm_service import LLMService
+from app.services.git_service import GitService
 from app.api.v1.archeology import archeology_engine
 
 router = APIRouter()
@@ -118,10 +119,25 @@ async def code_fix(request: CodeFixRequest):
                     f"{json.dumps(impact_analysis, indent=2)}"
                 )
 
+                history = GitService.get_file_history(
+                    Path(request.repo_path),
+                    request.file_path,
+                    limit=5,
+                )
+
+                history_context = (
+                    "Recent Git history for the target file:\n"
+                    f"{json.dumps(history, indent=2)}"
+                )
+
+                repository_context = (
+                    f"{impact_context}\n\n{history_context}"
+                )
+
                 if llm_context:
-                    llm_context = f"{llm_context}\n\n{impact_context}"
+                    llm_context = f"{llm_context}\n\n{repository_context}"
                 else:
-                    llm_context = impact_context
+                    llm_context = repository_context
 
             except Exception:
                 impact_analysis = {
