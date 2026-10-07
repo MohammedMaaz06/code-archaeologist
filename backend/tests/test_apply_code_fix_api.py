@@ -101,3 +101,41 @@ def test_apply_code_fix_blocks_path_traversal():
         assert response.status_code == 400
         assert response.json()["detail"] == "file_path must point inside repo_path."
         assert outside.read_text(encoding="utf-8") == outside_original
+
+
+def test_apply_code_fix_rejects_invalid_python_without_modifying_file():
+    client = TestClient(app)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        repo = Path(tmpdir)
+        target = repo / "math.py"
+
+        original = "def add(a, b):\n    return a - b\n"
+        invalid_fix = "def add(a, b)\n    return a + b\n"
+
+        target.write_text(original, encoding="utf-8")
+
+        expected_sha256 = hashlib.sha256(
+            original.encode("utf-8")
+        ).hexdigest()
+
+        response = client.post(
+            "/api/v1/apply-code-fix",
+            json={
+                "repo_path": str(repo),
+                "file_path": "math.py",
+                "expected_sha256": expected_sha256,
+                "corrected_code": invalid_fix,
+                "language": "python",
+            },
+        )
+
+        assert response.status_code == 422
+
+        detail = response.json()["detail"]
+
+        assert detail["message"] == "Corrected code failed validation."
+        assert detail["validation_status"] == "failed"
+        assert "Python syntax error:" in detail["validation_message"]
+
+        assert target.read_text(encoding="utf-8") == original
