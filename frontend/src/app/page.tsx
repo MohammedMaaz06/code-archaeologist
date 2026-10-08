@@ -1,285 +1,217 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect } from "react";
-import RepoIndexer from "@/components/RepoIndexer";
-import CodeFixPanel from "@/components/CodeFixPanel";
-import ASTDependencyGraph from "@/components/ASTDependencyGraph";
-import ASTGraph3D from "@/components/ASTGraph3D";
-import { api, IndexRepoResponse } from "@/lib/api";
-import { 
-  Activity, 
-  GitBranch, 
-  Search, 
-  FileCode2, 
-  Cpu, 
-  Terminal, 
-  ShieldCheck, 
-  ArrowUpRight 
-} from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { ChevronRight } from "lucide-react";
+import Header from "@/components/Header";
+import Sidebar, { MobileNav, VIEW_META, type View } from "@/components/Sidebar";
+import RepositoryPanel, { type Analysis } from "@/components/RepositoryPanel";
+import RepoSummaryBar from "@/components/RepoSummaryBar";
+import OverviewView from "@/components/OverviewView";
+import GraphExplorer, { type FocusRequest } from "@/components/GraphExplorer";
+import NodeInspector from "@/components/NodeInspector";
+import ImpactPanel from "@/components/ImpactPanel";
+import CommandPalette from "@/components/CommandPalette";
+import { api, type GraphNode } from "@/lib/api";
+import { useApiResource } from "@/lib/useApiResource";
 
 export default function Home() {
-  const [healthStatus, setHealthStatus] = useState<string>("Checking...");
-  const [showScanner, setShowScanner] = useState<boolean>(false);
-  const [showGraph, setShowGraph] = useState<boolean>(false);
-  const [showImpact, setShowImpact] = useState<boolean>(false);
-  const [showCodeFix, setShowCodeFix] = useState<boolean>(false);
-  const [indexStats, setIndexStats] = useState<IndexRepoResponse | null>(null);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [analysis, setAnalysis] = useState<Analysis | null>(null);
+  const [view, setView] = useState<View>("overview");
+  // The graph canvas is mounted on first visit and then kept (hidden) so zoom/layout survive view switches.
+  const [graphVisited, setGraphVisited] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [depth, setDepth] = useState(3);
+  const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(null);
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
-  useEffect(() => {
-    api.getHealth()
-      .then((data) => setHealthStatus(data.status === "ok" || data.status === "healthy" ? "Healthy" : "Degraded"))
-      .catch(() => setHealthStatus("Offline"));
+  const graph = useApiResource((signal) => api.exportGraph(signal), []);
+
+  // Blast radius is fetched only while the Impact view is active and a symbol is selected.
+  const blast = useApiResource(
+    view === "impact" && selectedId ? (signal) => api.getBlastRadius(selectedId, depth, signal) : null,
+    [view, selectedId, depth]
+  );
+
+  const nodesById = useMemo(() => {
+    const map = new Map<string, GraphNode>();
+    graph.data?.nodes.forEach((n) => map.set(n.id, n));
+    return map;
+  }, [graph.data]);
+
+  const selectedNode = selectedId ? nodesById.get(selectedId) ?? null : null;
+
+  // Backends that omit depth_map still highlight affected nodes (treated as depth 1).
+  const impactDepths = useMemo(() => {
+    if (!blast.data || blast.data.symbolId !== selectedId) return null;
+    return new Map(blast.data.affected.map((a) => [a.id, a.depth && a.depth > 0 ? a.depth : 1]));
+  }, [blast.data, selectedId]);
+
+  const go = useCallback((next: View) => {
+    setView(next);
+    if (next !== "overview") setGraphVisited(true);
   }, []);
 
-  const stats = [
-    {
-      label: "Files Indexed",
-      value: indexStats ? indexStats.indexed_files.toLocaleString() : "?",
-      change: indexStats ? "Latest scan" : "Run a repository scan",
-      icon: GitBranch,
-      color: "from-blue-500 to-cyan-400",
-    },
-    {
-      label: "Symbols Extracted",
-      value: indexStats ? indexStats.total_symbols.toLocaleString() : "?",
-      change: indexStats ? "Latest scan" : "Waiting for scan",
-      icon: FileCode2,
-      color: "from-indigo-500 to-purple-400",
-    },
-    {
-      label: "Chunks Generated",
-      value: indexStats ? indexStats.total_chunks.toLocaleString() : "?",
-      change: indexStats ? "Latest scan" : "Waiting for scan",
-      icon: Activity,
-      color: "from-emerald-500 to-teal-400",
-    },
-    {
-      label: "Index Status",
-      value: indexStats ? indexStats.status : "Idle",
-      change: indexStats ? "Latest scan completed" : "No scan yet",
-      icon: Cpu,
-      color: "from-amber-500 to-orange-400",
-    },
-  ];
+  const focusNode = useCallback((id: string) => setFocusRequest({ id, nonce: Date.now() }), []);
 
-  const quickActions = [
-    { title: "Repository Scanner", desc: "Scan physical repo path & build symbol index.", tag: "POST /repositories/scan", icon: Search },
-    { title: "Dependency Graph", desc: "Visualize cross-file imports & symbol dependencies.", tag: "POST /graph/build", icon: GitBranch },
-    { title: "Impact Analysis", desc: "Calculate blast radius before refactoring codebase.", tag: "GET /graph/blast-radius", icon: ShieldCheck },
-    { title: "LLM Code Archeology", desc: "Query repository history with AI assistant.", tag: "POST /llm/explain", icon: Terminal },
-    { title: "AI Code Fix", desc: "Generate and review an AI-powered code correction.", tag: "POST /llm/code-fix", icon: Cpu },
-  ];
+  const openSymbol = useCallback(
+    (id: string, target: "graph" | "impact") => {
+      setSelectedId(id);
+      focusNode(id);
+      go(target);
+    },
+    [focusNode, go]
+  );
+
+  const openScanner = useCallback(() => {
+    setScannerOpen(true);
+    go("overview");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [go]);
+
+  const handleAnalyzed = useCallback(
+    (result: Analysis) => {
+      setAnalysis(result);
+      setScannerOpen(false);
+      setSelectedId(null);
+      graph.reload();
+    },
+    [graph]
+  );
+
+  // Ctrl/Cmd+K opens the symbol finder from anywhere.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPaletteOpen((open) => !open);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const badges = useMemo(
+    () => ({
+      graph: graph.data ? graph.data.nodes.length.toLocaleString() : undefined,
+      impact: view === "impact" && blast.data && blast.data.symbolId === selectedId ? blast.data.totalImpacted.toLocaleString() : undefined,
+    }),
+    [graph.data, view, blast.data, selectedId]
+  );
+
+  const onWorkspace = view !== "overview";
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-8 font-sans selection:bg-indigo-500 selection:text-white">
-      {/* Top Bar Header */}
-      <header className="flex flex-col md:flex-row md:items-center justify-between pb-8 mb-8 border-b border-slate-800/80 gap-4">
-        <div>
-          <div className="flex items-center gap-3">
-            <div className={`h-3 w-3 rounded-full ${healthStatus === 'Healthy' ? 'bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.8)]' : 'bg-amber-400'} animate-pulse`} />
-            <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
-              Code Archaeologist
-            </h1>
-          </div>
-          <p className="text-sm text-slate-400 mt-1">
-            Backend API Status: <span className={healthStatus === 'Healthy' ? 'text-emerald-400 font-medium' : 'text-amber-400 font-medium'}>{healthStatus}</span>
-          </p>
-        </div>
+    <div className="min-h-screen bg-slate-950 text-slate-100">
+      <Header
+        scannerOpen={scannerOpen}
+        onToggleScanner={() => (scannerOpen ? setScannerOpen(false) : openScanner())}
+        onOpenPalette={() => setPaletteOpen(true)}
+      />
 
-        <div className="flex items-center gap-3">
-          <button className="px-4 py-2 text-sm font-medium rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white transition-all shadow-sm">
-            Docs
-          </button>
-          <button
-            onClick={() => setShowScanner((prev) => !prev)}
-            className="px-4 py-2 text-sm font-semibold rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white transition-all shadow-lg shadow-indigo-500/20 active:scale-95"
-          >
-            {showScanner ? "Close Scanner" : "+ New Scan"}
-          </button>
-        </div>
-      </header>
+      <div className="lg:flex">
+        <Sidebar
+          view={view}
+          onChange={go}
+          badges={badges}
+          selected={selectedNode}
+          selectedId={selectedId}
+          onOpenPalette={() => setPaletteOpen(true)}
+        />
 
-      {showImpact && (
-        <section className="mb-10">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-lg font-bold text-slate-200">
-                Impact Analysis
-              </h2>
-              <p className="text-sm text-slate-400 mt-1">
-                Explore code change impact and blast radius.
-              </p>
-            </div>
+        <main className="min-w-0 flex-1 space-y-4 px-4 py-4 sm:px-6 lg:py-6">
+          <MobileNav view={view} onChange={go} badges={badges} />
 
-            <button
-              onClick={() => setShowImpact(false)}
-              className="text-xs text-slate-400 hover:text-slate-200 transition-colors"
-            >
-              Close
-            </button>
+          <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-xs text-slate-500">
+            <span>{analysis?.repo.name ?? "Workspace"}</span>
+            <ChevronRight className="h-3 w-3" />
+            <span className="font-medium text-slate-300">{VIEW_META[view].label}</span>
+            <span className="hidden text-slate-500 sm:inline">· {VIEW_META[view].description}</span>
+          </nav>
+
+          {/* Kept mounted (hidden outside Overview) so an in-flight scan is never aborted by navigating. */}
+          <div className={view === "overview" ? "block" : "hidden"}>
+            <RepositoryPanel
+              analysis={analysis}
+              graph={graph.data}
+              scannerOpen={scannerOpen}
+              onAnalyzed={handleAnalyzed}
+              onClose={() => setScannerOpen(false)}
+            />
           </div>
 
-          <ASTGraph3D />
-        </section>
-      )}
+          {view === "overview" && (
+            <OverviewView
+              graph={graph.data}
+              loading={graph.loading}
+              error={graph.error}
+              onRetry={graph.reload}
+              onScan={openScanner}
+              onOpenSymbol={openSymbol}
+            />
+          )}
 
-      {showGraph && (
-        <section className="mb-10">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-lg font-bold text-slate-200">
-                Dependency Graph
-              </h2>
-              <p className="text-sm text-slate-400 mt-1">
-                Explore relationships discovered by the code analysis pipeline.
-              </p>
-            </div>
+          {onWorkspace && <RepoSummaryBar analysis={analysis} onScan={openScanner} />}
 
-            <button
-              onClick={() => setShowGraph(false)}
-              className="text-xs text-slate-400 hover:text-slate-200 transition-colors"
-            >
-              Close
-            </button>
-          </div>
+          {graphVisited && (
+            <div className={onWorkspace ? "grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_380px]" : "hidden"}>
+              <GraphExplorer
+                graph={graph.data}
+                loading={graph.loading}
+                error={graph.error}
+                onRetry={graph.reload}
+                onOpenScanner={openScanner}
+                selectedId={selectedId}
+                onSelect={setSelectedId}
+                mode={view === "impact" ? "impact" : "graph"}
+                impactDepths={impactDepths}
+                focusRequest={focusRequest}
+                visible={onWorkspace}
+              />
 
-          <ASTDependencyGraph />
-        </section>
-      )}
-
-      {showCodeFix && (
-        <section className="mb-10">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-lg font-bold text-slate-200">
-                AI Code Fix
-              </h2>
-              <p className="text-sm text-slate-400 mt-1">
-                Generate and review a proposed correction without changing the repository.
-              </p>
-            </div>
-
-            <button
-              onClick={() => setShowCodeFix(false)}
-              className="text-xs text-slate-400 hover:text-slate-200 transition-colors"
-            >
-              Close
-            </button>
-          </div>
-
-          <CodeFixPanel />
-        </section>
-      )}
-
-      {showScanner && (
-        <section className="mb-10">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-lg font-bold text-slate-200">
-                Repository Analysis
-              </h2>
-              <p className="text-sm text-slate-400 mt-1">
-                Analyze a repository and build its code intelligence index.
-              </p>
-            </div>
-          </div>
-
-          <RepoIndexer onIndexed={(result) => setIndexStats(result)} />
-        </section>
-      )}
-
-      {/* Metrics Grid */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-10">
-        {stats.map((stat, idx) => {
-          const Icon = stat.icon;
-          return (
-            <div 
-              key={idx}
-              className="relative group p-5 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-xl hover:border-slate-700 transition-all duration-300 hover:-translate-y-1 shadow-md hover:shadow-xl hover:shadow-indigo-500/5 overflow-hidden"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-xs font-semibold tracking-wider uppercase text-slate-400">{stat.label}</span>
-                <div className={`p-2.5 rounded-xl bg-gradient-to-br ${stat.color} text-white shadow-sm`}>
-                  <Icon className="w-5 h-5" />
-                </div>
-              </div>
-              <div className="text-2xl font-bold text-white tracking-tight mb-1">{stat.value}</div>
-              <div className="text-xs text-emerald-400 font-medium flex items-center gap-1">
-                <span>{stat.change}</span>
-              </div>
-            </div>
-          );
-        })}
-      </section>
-
-      {/* Quick Action Cards Grid */}
-      <section>
-        <h2 className="text-lg font-bold text-slate-200 mb-5 flex items-center gap-2">
-          <span>Engine Workflows</span>
-          <span className="text-xs font-normal px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">v1.0</span>
-        </h2>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {quickActions.map((action, idx) => {
-            const Icon = action.icon;
-            return (
-              <div
-                key={idx}
-                onClick={() => {
-                  if (action.title === "Repository Scanner") {
-                    setShowScanner(true);
-                    setShowGraph(false);
-                    setShowImpact(false);
-                    setShowCodeFix(false);
-                    window.scrollTo({ top: 0, behavior: "smooth" });
-                  }
-
-                  if (action.title === "Dependency Graph") {
-                    setShowGraph(true);
-                    setShowScanner(false);
-                    setShowImpact(false);
-                    setShowCodeFix(false);
-                    window.scrollTo({ top: 0, behavior: "smooth" });
-                  }
-
-                  if (action.title === "Impact Analysis") {
-                    setShowImpact(true);
-                    setShowScanner(false);
-                    setShowGraph(false);
-                    setShowCodeFix(false);
-                    window.scrollTo({ top: 0, behavior: "smooth" });
-                  }
-
-                  if (action.title === "AI Code Fix") {
-                    setShowCodeFix(true);
-                    setShowScanner(false);
-                    setShowGraph(false);
-                    setShowImpact(false);
-                    window.scrollTo({ top: 0, behavior: "smooth" });
-                  }
-                }}
-                className="group relative p-6 rounded-2xl bg-slate-900/40 border border-slate-800/80 hover:border-indigo-500/50 hover:bg-slate-900/80 transition-all duration-300 cursor-pointer shadow-sm hover:shadow-indigo-500/10"
+              <aside
+                aria-label={view === "impact" ? "Impact analysis" : "Symbol inspector"}
+                className="max-h-[640px] min-h-[200px] overflow-y-auto rounded-md border border-slate-800 bg-slate-900 shadow-sm xl:h-[calc(600px+12rem)] xl:max-h-none"
               >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="p-3 rounded-xl bg-slate-800/80 text-indigo-400 group-hover:bg-indigo-500 group-hover:text-white transition-all duration-300">
-                    <Icon className="w-6 h-6" />
-                  </div>
-                  <ArrowUpRight className="w-5 h-5 text-slate-600 group-hover:text-indigo-400 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
-                </div>
-                <h3 className="text-base font-semibold text-slate-100 group-hover:text-indigo-300 transition-colors">
-                  {action.title}
-                </h3>
-                <p className="text-sm text-slate-400 mt-1 mb-4 leading-relaxed">
-                  {action.desc}
-                </p>
-                <span className="inline-block px-2.5 py-1 text-xs font-mono font-medium rounded-lg bg-slate-950 border border-slate-800 text-slate-400">
-                  {action.tag}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </section>
+                {view === "impact" ? (
+                  <ImpactPanel
+                    node={selectedNode}
+                    selectedId={selectedId}
+                    depth={depth}
+                    onDepthChange={setDepth}
+                    loading={blast.loading}
+                    error={blast.error}
+                    result={blast.data}
+                    nodesById={nodesById}
+                    totalNodes={graph.data?.nodes.length ?? 0}
+                    onRetry={blast.reload}
+                    onFocusNode={focusNode}
+                  />
+                ) : (
+                  <NodeInspector
+                    graph={graph.data}
+                    node={selectedNode}
+                    selectedId={selectedId}
+                    nodesById={nodesById}
+                    onNavigate={(id) => openSymbol(id, "graph")}
+                    onAnalyzeImpact={() => go("impact")}
+                  />
+                )}
+              </aside>
+            </div>
+          )}
+        </main>
+      </div>
+
+      <CommandPalette
+        open={paletteOpen}
+        nodes={graph.data?.nodes ?? []}
+        onClose={() => setPaletteOpen(false)}
+        onPick={(id, target) => {
+          setPaletteOpen(false);
+          openSymbol(id, target);
+        }}
+      />
     </div>
   );
 }

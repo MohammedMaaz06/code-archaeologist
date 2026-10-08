@@ -1,8 +1,61 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+/*
+ * Theme: warm beige / ink (light).
+ *
+ * The components were authored against Tailwind's `slate` scale on a dark theme, so rather than
+ * rewrite every class this file remaps the scale. Read it as a semantic ramp:
+ *   slate-950 page background   slate-900 raised surface   slate-800 subtle border / hover
+ *   slate-700 strong border     slate-600 disabled/dim       slate-500..300 text, muted -> strong
+ *   slate-200..100 primary text
+ * Status and accent colours (sky = accent, emerald/amber/rose = success/warning/danger) are
+ * remapped to darker tones so they stay readable on beige.
+ */
+@theme {
+  --color-slate-50: #fdfbf7;
+  --color-slate-100: #2a251c;
+  --color-slate-200: #38322a;
+  --color-slate-300: #4a4337;
+  --color-slate-400: #5f5747;
+  --color-slate-500: #766d5c;
+  --color-slate-600: #a39a88;
+  --color-slate-700: #d3c9b4;
+  --color-slate-800: #e5dcc9;
+  --color-slate-900: #fbf8f2;
+  --color-slate-950: #f3eee3;
+
+  /* accent: deep green-teal */
+  --color-sky-300: #2f5d52;
+  --color-sky-400: #3b7266;
+  --color-sky-500: #3b7266;
+  --color-sky-600: #2f5d52;
+
+  --color-emerald-300: #2f7a4f;
+  --color-emerald-400: #2f8a5a;
+  --color-amber-300: #8a6a1c;
+  --color-amber-400: #9a7420;
+  --color-rose-300: #a63a35;
+  --color-rose-400: #b4443f;
+  --color-rose-500: #c0463f;
+  --color-rose-800: #dba79d;
+  --color-rose-900: #e3b9b0;
+  --color-rose-950: #f2d6cf;
+
+  --font-sans: ui-sans-serif, "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", "SF Mono", Consolas, Menlo, monospace;
+}
+
+:root {
+  color-scheme: light;
+}
 
 body {
-  background-color: #020617;
-  color: #f8fafc;
+  background-color: #f3eee3;
+  color: #2a251c;
+  font-feature-settings: "cv11", "ss01";
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: #d8cfba;
 }
