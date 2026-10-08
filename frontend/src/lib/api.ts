@@ -131,7 +131,7 @@ export const api = {
     }),
 
   codeFix: (request: CodeFixRequest) =>
-    fetchAPI<CodeFixResult>("/llm/code-fix", {
+    fetchAPI<CodeFixResult>("/code-fix", {
       method: "POST",
       body: JSON.stringify(request),
     }),
