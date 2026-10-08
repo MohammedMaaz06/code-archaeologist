@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import RepoIndexer from "@/components/RepoIndexer";
+import CodeFixPanel from "@/components/CodeFixPanel";
 import ASTDependencyGraph from "@/components/ASTDependencyGraph";
 import ASTGraph3D from "@/components/ASTGraph3D";
 import { api, IndexRepoResponse } from "@/lib/api";
@@ -21,6 +22,7 @@ export default function Home() {
   const [showScanner, setShowScanner] = useState<boolean>(false);
   const [showGraph, setShowGraph] = useState<boolean>(false);
   const [showImpact, setShowImpact] = useState<boolean>(false);
+  const [showCodeFix, setShowCodeFix] = useState<boolean>(false);
   const [indexStats, setIndexStats] = useState<IndexRepoResponse | null>(null);
 
   useEffect(() => {
@@ -65,6 +67,7 @@ export default function Home() {
     { title: "Dependency Graph", desc: "Visualize cross-file imports & symbol dependencies.", tag: "POST /graph/build", icon: GitBranch },
     { title: "Impact Analysis", desc: "Calculate blast radius before refactoring codebase.", tag: "GET /graph/blast-radius", icon: ShieldCheck },
     { title: "LLM Code Archeology", desc: "Query repository history with AI assistant.", tag: "POST /llm/explain", icon: Terminal },
+    { title: "AI Code Fix", desc: "Generate and review an AI-powered code correction.", tag: "POST /llm/code-fix", icon: Cpu },
   ];
 
   return (
@@ -144,6 +147,30 @@ export default function Home() {
         </section>
       )}
 
+      {showCodeFix && (
+        <section className="mb-10">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-bold text-slate-200">
+                AI Code Fix
+              </h2>
+              <p className="text-sm text-slate-400 mt-1">
+                Generate and review a proposed correction without changing the repository.
+              </p>
+            </div>
+
+            <button
+              onClick={() => setShowCodeFix(false)}
+              className="text-xs text-slate-400 hover:text-slate-200 transition-colors"
+            >
+              Close
+            </button>
+          </div>
+
+          <CodeFixPanel />
+        </section>
+      )}
+
       {showScanner && (
         <section className="mb-10">
           <div className="flex items-center justify-between mb-4">
@@ -203,6 +230,7 @@ export default function Home() {
                     setShowScanner(true);
                     setShowGraph(false);
                     setShowImpact(false);
+                    setShowCodeFix(false);
                     window.scrollTo({ top: 0, behavior: "smooth" });
                   }
 
@@ -210,6 +238,7 @@ export default function Home() {
                     setShowGraph(true);
                     setShowScanner(false);
                     setShowImpact(false);
+                    setShowCodeFix(false);
                     window.scrollTo({ top: 0, behavior: "smooth" });
                   }
 
@@ -217,6 +246,15 @@ export default function Home() {
                     setShowImpact(true);
                     setShowScanner(false);
                     setShowGraph(false);
+                    setShowCodeFix(false);
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }
+
+                  if (action.title === "AI Code Fix") {
+                    setShowCodeFix(true);
+                    setShowScanner(false);
+                    setShowGraph(false);
+                    setShowImpact(false);
                     window.scrollTo({ top: 0, behavior: "smooth" });
                   }
                 }}
