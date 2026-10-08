@@ -17,7 +17,7 @@ class LLMService:
         # Try calling local LLM endpoint (Ollama style) with a short timeout
         try:
             payload = json.dumps({
-                "model": "codellama",
+                "model": "llama3.2:latest",
                 "prompt": prompt,
                 "stream": False
             }).encode("utf-8")
@@ -92,7 +92,7 @@ class LLMService:
 
         try:
             payload = json.dumps({
-                "model": "codellama",
+                "model": "llama3.2:latest",
                 "prompt": prompt,
                 "stream": False
             }).encode("utf-8")
@@ -103,7 +103,7 @@ class LLMService:
                 headers={"Content-Type": "application/json"}
             )
 
-            with urllib.request.urlopen(req, timeout=10) as response:
+            with urllib.request.urlopen(req, timeout=60) as response:
                 if response.status == 200:
                     data = json.loads(response.read().decode("utf-8"))
                     corrected_code = data.get("response", "").strip()
@@ -155,7 +155,7 @@ class LLMService:
                             "corrected_code": corrected_code,
                             "diff": diff,
                             "changed": source_code != corrected_code,
-                            "model": "codellama",
+                            "model": "llama3.2:latest",
                             **validation,
                         }
 
@@ -168,7 +168,7 @@ class LLMService:
             "corrected_code": None,
             "diff": "",
             "changed": False,
-            "model": "codellama",
+            "model": "llama3.2:latest",
         }
 
     def _build_prompt(self, context_digest: Dict[str, Any]) -> str:
