@@ -10,6 +10,7 @@ import OverviewView from "@/components/OverviewView";
 import GraphExplorer, { type FocusRequest } from "@/components/GraphExplorer";
 import NodeInspector from "@/components/NodeInspector";
 import ImpactPanel from "@/components/ImpactPanel";
+import CodeFixView from "@/components/CodeFixView";
 import CommandPalette from "@/components/CommandPalette";
 import { api, type GraphNode } from "@/lib/api";
 import { useApiResource } from "@/lib/useApiResource";
@@ -49,7 +50,7 @@ export default function Home() {
 
   const go = useCallback((next: View) => {
     setView(next);
-    if (next !== "overview") setGraphVisited(true);
+    if (next !== "overview" && next !== "codefix") setGraphVisited(true);
   }, []);
 
   const focusNode = useCallback((id: string) => setFocusRequest({ id, nonce: Date.now() }), []);
@@ -99,7 +100,7 @@ export default function Home() {
     [graph.data, view, blast.data, selectedId]
   );
 
-  const onWorkspace = view !== "overview";
+  const onWorkspace = view !== "overview" && view !== "codefix";
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
@@ -150,6 +151,8 @@ export default function Home() {
               onOpenSymbol={openSymbol}
             />
           )}
+
+          {view === "codefix" && <CodeFixView />}
 
           {onWorkspace && <RepoSummaryBar analysis={analysis} onScan={openScanner} />}
 
