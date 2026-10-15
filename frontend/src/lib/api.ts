@@ -370,14 +370,31 @@ export interface CodeFixResult {
 
 const symbolQuery = (symbolId: string) => `symbol_id=${encodeURIComponent(symbolId)}`;
 
+/** Exactly one source is accepted for repository scanning. */
+export type RepositoryScanSource =
+  | { path: string; repo_url?: never }
+  | { repo_url: string; path?: never };
+
 export const api = {
   getHealth: (signal?: AbortSignal) => fetchAPI<HealthResponse>("/health", { signal }),
 
-  scanRepository: async (path: string, signal?: AbortSignal): Promise<ScanResult> =>
-    normalizeScan(
-      await fetchAPI<unknown>("/scan", { method: "POST", body: JSON.stringify({ path }), signal }),
-      path
-    ),
+  scanRepository: async (
+    source: string | RepositoryScanSource,
+    signal?: AbortSignal
+  ): Promise<ScanResult> => {
+    const body: { path?: string; repo_url?: string } =
+      typeof source === "string" ? { path: source } : source;
+    const requestedSource = body.path ?? body.repo_url ?? "";
+
+    return normalizeScan(
+      await fetchAPI<unknown>("/scan", {
+        method: "POST",
+        body: JSON.stringify(body),
+        signal,
+      }),
+      requestedSource
+    );
+  },
 
   indexFiles: async (files: IndexFileInput[], signal?: AbortSignal): Promise<IndexResult> =>
     normalizeIndex(

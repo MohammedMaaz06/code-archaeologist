@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from app.services.git_service import GitService
 from app.services.repository_analysis_service import RepositoryAnalysisService
+from app.services.repository_source_service import RepositorySourceError, RepositorySourceService
 from app.api.v1.graph import graph_service
 
 router = APIRouter()
@@ -13,7 +14,14 @@ _IN_MEMORY_REPOS = {}
 
 
 class ScanRepoRequest(BaseModel):
-    path: str = Field(..., description="Absolute path to local Git repository")
+    path: Optional[str] = Field(
+        default=None,
+        description="Absolute path to a local repository on the backend machine",
+    )
+    repo_url: Optional[str] = Field(
+        default=None,
+        description="Public HTTPS Git URL from GitHub, GitLab, or Bitbucket",
+    )
 
 
 class FileIndexDTO(BaseModel):
@@ -40,9 +48,30 @@ class RepositoryDTO(BaseModel):
 
 @router.post("/scan", response_model=RepositoryDTO)
 async def scan_repository(request: ScanRepoRequest):
-    repo_path = Path(request.path).resolve()
+    local_path = (request.path or "").strip()
+    repo_url = (request.repo_url or "").strip()
+
+    if bool(local_path) == bool(repo_url):
+        raise HTTPException(
+            status_code=400,
+            detail="Provide exactly one source: 'path' for a local repository or 'repo_url' for a public Git URL.",
+        )
+
+    if repo_url:
+        try:
+            repo_path = RepositorySourceService.clone_public_repository(repo_url)
+            repo_name = RepositorySourceService.repository_name(repo_url)
+        except RepositorySourceError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+    else:
+        repo_path = Path(local_path).expanduser().resolve()
+        repo_name = repo_path.name
+
     if not repo_path.exists() or not repo_path.is_dir():
-        raise HTTPException(status_code=400, detail=f"Invalid repository path: {request.path}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid repository path: {local_path}",
+        )
 
     try:
         analysis_service = RepositoryAnalysisService(str(repo_path))
@@ -69,7 +98,7 @@ async def scan_repository(request: ScanRepoRequest):
 
         repo_dto = RepositoryDTO(
             id=repo_id,
-            name=repo_path.name,
+            name=repo_name,
             path=str(repo_path),
             default_branch=git_info["branch"],
             head_commit=git_info["commit_hash"],

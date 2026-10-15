@@ -21,6 +21,8 @@ export interface Analysis {
 
 type Phase = "idle" | "scanning" | "indexing";
 
+type SourceMode = "local" | "git";
+
 interface RepositoryPanelProps {
   analysis: Analysis | null;
   graph: KnowledgeGraphData | null;
@@ -31,9 +33,10 @@ interface RepositoryPanelProps {
 
 // The backend expects an absolute path: C:\..., \\server\..., /..., or ~/...
 const ABSOLUTE_PATH = /^([a-zA-Z]:[\\/]|\\\\|\/|~[\\/]?)/;
+const SUPPORTED_GIT_HOSTS = new Set(["github.com", "gitlab.com", "bitbucket.org"]);
 
 const STEPS = [
-  { title: "Scan", text: "Point the scanner at a local repository to inventory its files and lines of code." },
+  { title: "Scan", text: "Choose a local folder or public Git URL to inventory files and lines of code." },
   { title: "Explore", text: "Browse the knowledge graph of files, functions and classes and how they call, import and contain each other." },
   { title: "Analyze impact", text: "Pick a symbol to see everything that could break if it changes, ordered by distance." },
 ];
@@ -52,6 +55,7 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
 
 export default function RepositoryPanel({ analysis, graph, scannerOpen, onAnalyzed, onClose }: RepositoryPanelProps) {
   const [path, setPath] = useState("");
+  const [sourceMode, setSourceMode] = useState<SourceMode>("local");
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState<string | null>(null);
   const controllerRef = useRef<AbortController | null>(null);
@@ -65,9 +69,43 @@ export default function RepositoryPanel({ analysis, graph, scannerOpen, onAnalyz
     if (busy) return;
 
     const trimmed = path.trim().replace(/^["']|["']$/g, "");
-    if (!trimmed) return setError("Enter the absolute path of a local repository.");
-    if (!ABSOLUTE_PATH.test(trimmed)) {
-      return setError("Use an absolute path, e.g. C:\\Projects\\my-repo or /home/me/my-repo.");
+    if (!trimmed) {
+      setError(
+        sourceMode === "local"
+          ? "Enter the absolute path of a local repository."
+          : "Enter a public Git HTTPS URL."
+      );
+      return;
+    }
+
+    if (sourceMode === "local") {
+      if (!ABSOLUTE_PATH.test(trimmed)) {
+        setError("Use an absolute path, e.g. C:\\Projects\\my-repo or /home/me/my-repo.");
+        return;
+      }
+    } else {
+      let parsed: URL;
+      try {
+        parsed = new URL(trimmed);
+      } catch {
+        setError("Enter a valid public HTTPS Git URL.");
+        return;
+      }
+
+      if (
+        parsed.protocol !== "https:" ||
+        !SUPPORTED_GIT_HOSTS.has(parsed.hostname.toLowerCase()) ||
+        Boolean(parsed.username) ||
+        Boolean(parsed.password) ||
+        Boolean(parsed.search) ||
+        Boolean(parsed.hash) ||
+        (parsed.port !== "" && parsed.port !== "443")
+      ) {
+        setError(
+          "Use a public HTTPS URL from GitHub, GitLab, or Bitbucket without credentials or query parameters."
+        );
+        return;
+      }
     }
 
     controllerRef.current?.abort();
@@ -78,7 +116,8 @@ export default function RepositoryPanel({ analysis, graph, scannerOpen, onAnalyz
 
     let repo: ScanResult;
     try {
-      repo = await api.scanRepository(trimmed, controller.signal);
+      const source = sourceMode === "local" ? trimmed : { repo_url: trimmed };
+      repo = await api.scanRepository(source, controller.signal);
     } catch (err) {
       if (isAbortError(err)) return;
       setError(`Scan failed: ${err instanceof Error ? err.message : "unknown error"}`);
@@ -165,8 +204,39 @@ export default function RepositoryPanel({ analysis, graph, scannerOpen, onAnalyz
 
       {showForm && (
         <form onSubmit={handleSubmit} className="space-y-3 border-b border-slate-800 px-4 py-4">
+          <div className="space-y-1.5">
+            <p id="repo-source-label" className="text-xs font-medium text-slate-300">
+              Repository source
+            </p>
+            <div role="group" aria-labelledby="repo-source-label" className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                aria-pressed={sourceMode === "local"}
+                onClick={() => { setSourceMode("local"); setError(null); }}
+                className={`rounded-md border px-3 py-2 text-xs transition-colors ${
+                  sourceMode === "local"
+                    ? "border-sky-500 bg-sky-600 text-white"
+                    : "border-slate-700 text-slate-300 hover:bg-slate-800"
+                }`}
+              >
+                Local folder
+              </button>
+              <button
+                type="button"
+                aria-pressed={sourceMode === "git"}
+                onClick={() => { setSourceMode("git"); setError(null); }}
+                className={`rounded-md border px-3 py-2 text-xs transition-colors ${
+                  sourceMode === "git"
+                    ? "border-sky-500 bg-sky-600 text-white"
+                    : "border-slate-700 text-slate-300 hover:bg-slate-800"
+                }`}
+              >
+                Git repository URL
+              </button>
+            </div>
+          </div>
           <label htmlFor="repo-path" className="block text-xs font-medium text-slate-300">
-            Local repository path
+            {sourceMode === "local" ? "Local repository path" : "Public Git repository URL"}
           </label>
           <div className="flex flex-col gap-2 sm:flex-row">
             <input
@@ -180,7 +250,7 @@ export default function RepositoryPanel({ analysis, graph, scannerOpen, onAnalyz
               disabled={busy}
               spellCheck={false}
               autoComplete="off"
-              placeholder="C:\Projects\my-repo   or   /home/me/my-repo"
+              placeholder={sourceMode === "local" ? "C:\\Projects\\my-repo" : "https://github.com/owner/repository"}
               className="min-w-0 flex-1 rounded-md border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-xs text-slate-100 placeholder:text-slate-600 focus:border-sky-500 focus:outline-none disabled:opacity-60"
             />
             <button
@@ -202,7 +272,9 @@ export default function RepositoryPanel({ analysis, graph, scannerOpen, onAnalyz
             )}
           </div>
           <p className="text-[11px] text-slate-500">
-            The path is resolved by the backend, so it must exist on the machine running the API.
+            {sourceMode === "local"
+              ? "The folder must exist on the machine running the API."
+              : "Public HTTPS repositories from GitHub, GitLab, and Bitbucket are supported. Private repositories are not supported yet."}
           </p>
           {error && (
             <p role="alert" className="flex items-start gap-2 rounded-md border border-rose-900 bg-rose-950/40 px-3 py-2 text-xs text-rose-300">
