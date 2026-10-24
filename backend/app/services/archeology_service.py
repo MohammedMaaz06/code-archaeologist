@@ -8,9 +8,38 @@ class ArcheologyEngine:
         self.graph_service = graph_service
         self.vector_service = vector_service
 
-    def investigate(self, query: str, top_k: int = 3) -> Dict[str, Any]:
+    def investigate(
+        self,
+        query: str,
+        top_k: int = 3,
+        prefer_readme: bool = False,
+    ) -> Dict[str, Any]:
         # Step 1: Perform vector search for relevant code chunks
         vector_results = self.vector_service.query(query, top_k=top_k)
+
+        if prefer_readme:
+            readme = next(
+                (
+                    chunk
+                    for chunk in self.vector_service.indexed_chunks
+                    if chunk.file_path.replace("\\", "/").strip("/").lower() == "readme.md"
+                    and chunk.start_line == 1
+                ),
+                None,
+            )
+            if readme is not None:
+                readme_id = readme.to_dict()["chunk_id"]
+                vector_results = [
+                    {
+                        "score": 0.0,
+                        "chunk": readme.to_dict(),
+                    },
+                    *(
+                        result
+                        for result in vector_results
+                        if result["chunk"].get("chunk_id") != readme_id
+                    ),
+                ][:top_k]
 
         investigated_files = set()
         matched_chunks = []

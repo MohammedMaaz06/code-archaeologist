@@ -5,9 +5,6 @@ export const API_BASE_URL = (
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1"
 ).replace(/\/+$/, "");
 
-/** Backend origin without the /api/v1 suffix (used for the API docs link). */
-export const API_ORIGIN = API_BASE_URL.replace(/\/api\/v1$/, "");
-
 // ---------------------------------------------------------------------------
 // Errors + transport
 // ---------------------------------------------------------------------------
@@ -343,31 +340,6 @@ export interface ExplanationResponse {
   explanation: string;
 }
 
-export interface CodeFixRequest {
-  issue: string;
-  source_code?: string;
-  repo_path?: string;
-  file_path?: string;
-  language?: string;
-  context?: string;
-}
-
-export interface CodeFixResult {
-  issue: string;
-  language: string;
-  file_path?: string | null;
-  original_sha256?: string;
-  status: string;
-  original_code?: string | null;
-  corrected_code?: string | null;
-  diff?: string;
-  changed?: boolean;
-  model?: string;
-  validation_status?: string;
-  validation_message?: string;
-  impact_analysis?: Record<string, unknown> | null;
-}
-
 const symbolQuery = (symbolId: string) => `symbol_id=${encodeURIComponent(symbolId)}`;
 
 /** Exactly one source is accepted for repository scanning. */
@@ -396,9 +368,17 @@ export const api = {
     );
   },
 
-  indexFiles: async (files: IndexFileInput[], signal?: AbortSignal): Promise<IndexResult> =>
+  indexFiles: async (
+    files: IndexFileInput[],
+    signal?: AbortSignal,
+    repositoryPath?: string
+  ): Promise<IndexResult> =>
     normalizeIndex(
-      await fetchAPI<unknown>("/index", { method: "POST", body: JSON.stringify({ files }), signal })
+      await fetchAPI<unknown>("/index", {
+        method: "POST",
+        body: JSON.stringify({ files, repository_path: repositoryPath }),
+        signal,
+      })
     ),
 
   exportGraph: async (signal?: AbortSignal): Promise<KnowledgeGraphData> =>
@@ -423,17 +403,11 @@ export const api = {
       body: JSON.stringify({ query, top_k: topK }),
     }),
 
-  explain: (query: string, topK: number = 5) =>
-    fetchAPI<ExplanationResponse>("/llm/explain", {
+  explain: (query: string, topK: number = 5, repositoryPath?: string) =>
+    fetchAPI<ExplanationResponse>("/explain", {
       method: "POST",
-      body: JSON.stringify({ query, top_k: topK }),
+      body: JSON.stringify({ query, top_k: topK, repository_path: repositoryPath }),
     }),
 
-  codeFix: (request: CodeFixRequest, signal?: AbortSignal) =>
-    fetchAPI<CodeFixResult>("/code-fix", {
-      method: "POST",
-      body: JSON.stringify(request),
-      signal,
-    }),
 
 };

@@ -6,6 +6,9 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from app.services.llm_service import LLMService
 from app.services.git_service import GitService
+from app.services.graph_service import GraphService
+from app.services.archeology_service import ArcheologyEngine
+from app.services.repository_state import get_graph_service, get_vector_service
 from app.api.v1.archeology import archeology_engine
 
 router = APIRouter()
@@ -15,6 +18,7 @@ llm_service = LLMService()
 class ExplainRequest(BaseModel):
     query: str
     top_k: Optional[int] = 3
+    repository_path: Optional[str] = None
 
 
 class RefactorRiskRequest(BaseModel):
@@ -30,11 +34,52 @@ class CodeFixRequest(BaseModel):
     context: Optional[str] = None
 
 
+def _is_repository_overview_question(query: str) -> bool:
+    normalized = query.casefold()
+    return any(
+        phrase in normalized
+        for phrase in (
+            "what does this project",
+            "what does the project",
+            "what the project do",
+            "what is this project",
+            "what does this repository",
+            "what does the repository",
+            "what this repository do",
+            "what is this repository",
+            "project purpose",
+            "repository purpose",
+            "project overview",
+            "repository overview",
+            "main architecture",
+            "overall architecture",
+            "main modules",
+        )
+    )
+
+
 @router.post("/explain")
 async def explain_code(request: ExplainRequest):
     try:
+        explanation_engine = archeology_engine
+        if request.repository_path:
+            repository_vector_service = get_vector_service(request.repository_path)
+            if repository_vector_service is None or not repository_vector_service.indexed_chunks:
+                raise HTTPException(
+                    status_code=409,
+                    detail="This repository is not indexed in the current backend session. Rescan it before asking for an explanation.",
+                )
+            explanation_engine = ArcheologyEngine(
+                graph_service=get_graph_service(request.repository_path) or GraphService(),
+                vector_service=repository_vector_service,
+            )
+
         # Step 1: Synthesize context using ArcheologyEngine
-        context_digest = archeology_engine.investigate(query=request.query, top_k=request.top_k or 3)
+        context_digest = explanation_engine.investigate(
+            query=request.query,
+            top_k=request.top_k or 3,
+            prefer_readme=_is_repository_overview_question(request.query),
+        )
         
         # Step 2: Generate natural language response via LLM service
         explanation = llm_service.generate_explanation(context_digest)
@@ -44,6 +89,8 @@ async def explain_code(request: ExplainRequest):
             "explanation": explanation,
             "raw_context": context_digest
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"LLM Explanation failed: {str(e)}")
 

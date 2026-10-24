@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from app.services.chunker_service import CodeChunker
 from app.services.vector_service import VectorSearchService
+from app.services.repository_state import get_or_create_vector_service, get_vector_service
 
 router = APIRouter()
 vector_service = VectorSearchService()
@@ -17,17 +18,24 @@ class FileContentPayload(BaseModel):
 
 class IndexRequest(BaseModel):
     files: List[FileContentPayload]
+    repository_path: Optional[str] = None
 
 
 class SearchQueryRequest(BaseModel):
     query: str
     top_k: Optional[int] = 5
+    repository_path: Optional[str] = None
 
 
 @router.post("/index")
 async def index_repository_code(request: IndexRequest):
     try:
-        vector_service.clear()
+        index_service = (
+            get_or_create_vector_service(request.repository_path)
+            if request.repository_path
+            else vector_service
+        )
+        index_service.clear()
         total_chunks = 0
 
         for f in request.files:
@@ -37,7 +45,7 @@ async def index_repository_code(request: IndexRequest):
                 symbols=f.symbols,
                 language=f.language
             )
-            vector_service.index_chunks(chunks)
+            index_service.index_chunks(chunks)
             total_chunks += len(chunks)
 
         return {
@@ -52,7 +60,16 @@ async def index_repository_code(request: IndexRequest):
 @router.post("/query")
 async def query_code(request: SearchQueryRequest):
     try:
-        results = vector_service.query(request.query, top_k=request.top_k or 5)
+        query_service = (
+            get_vector_service(request.repository_path)
+            if request.repository_path
+            else vector_service
+        )
+        results = (
+            query_service.query(request.query, top_k=request.top_k or 5)
+            if query_service
+            else []
+        )
         return {
             "query": request.query,
             "total_matches": len(results),

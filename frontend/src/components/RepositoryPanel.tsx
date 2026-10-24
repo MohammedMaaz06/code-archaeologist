@@ -147,7 +147,7 @@ export default function RepositoryPanel({ analysis, graph, scannerOpen, onAnalyz
 
     setPhase("indexing");
     try {
-      const index = await api.indexFiles(indexable, controller.signal);
+      const index = await api.indexFiles(indexable, controller.signal, repo.path);
       onAnalyzed({ repo, index, indexNote: null, indexFailed: false });
     } catch (err) {
       if (isAbortError(err)) return;

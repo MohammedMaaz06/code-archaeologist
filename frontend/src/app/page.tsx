@@ -10,10 +10,12 @@ import OverviewView from "@/components/OverviewView";
 import GraphExplorer, { type FocusRequest } from "@/components/GraphExplorer";
 import NodeInspector from "@/components/NodeInspector";
 import ImpactPanel from "@/components/ImpactPanel";
-import CodeFixView from "@/components/CodeFixView";
+import CodeExplanationView from "@/components/CodeExplanationView";
 import CommandPalette from "@/components/CommandPalette";
-import { api, type GraphNode } from "@/lib/api";
+import { api, languageFromPath, type GraphNode } from "@/lib/api";
 import { useApiResource } from "@/lib/useApiResource";
+
+const LAST_REPOSITORY_KEY = "code-archaeologist:last-repository-path";
 
 export default function Home() {
   const [scannerOpen, setScannerOpen] = useState(false);
@@ -25,8 +27,8 @@ export default function Home() {
   const [depth, setDepth] = useState(3);
   const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
-
   const graph = useApiResource((signal) => api.exportGraph(signal), []);
+  const reloadGraph = graph.reload;
 
   // Blast radius is fetched only while the Impact view is active and a symbol is selected.
   const blast = useApiResource(
@@ -50,7 +52,7 @@ export default function Home() {
 
   const go = useCallback((next: View) => {
     setView(next);
-    if (next !== "overview" && next !== "codefix") setGraphVisited(true);
+    if (next !== "overview" && next !== "explain") setGraphVisited(true);
   }, []);
 
   const focusNode = useCallback((id: string) => setFocusRequest({ id, nonce: Date.now() }), []);
@@ -75,10 +77,81 @@ export default function Home() {
       setAnalysis(result);
       setScannerOpen(false);
       setSelectedId(null);
-      graph.reload();
+
+      const repositoryPath = result.repo?.path;
+      if (repositoryPath && typeof window !== "undefined") {
+        window.localStorage.setItem(LAST_REPOSITORY_KEY, repositoryPath);
+      }
+
+      reloadGraph();
     },
-    [graph]
+    [reloadGraph]
   );
+
+  // Restore the last scanned repository after a browser reload/reopen.
+  useEffect(() => {
+    const savedPath = window.localStorage.getItem(LAST_REPOSITORY_KEY)?.trim();
+    if (!savedPath) return;
+
+    let cancelled = false;
+    const controller = new AbortController();
+
+    const restoreRepository = async () => {
+      try {
+        const repo = await api.scanRepository(savedPath, controller.signal);
+        if (cancelled) return;
+
+        const indexable = repo.files.flatMap((file) =>
+          typeof file.source_code === "string" && file.source_code.length > 0
+            ? [{
+                file_path: file.file_path,
+                source_code: file.source_code,
+                language: file.language ?? languageFromPath(file.file_path),
+              }]
+            : []
+        );
+
+        if (indexable.length === 0) {
+          handleAnalyzed({
+            repo,
+            index: null,
+            indexNote: "Repository restored, but no source contents were available to rebuild the search index. Rescan the repository.",
+            indexFailed: true,
+          });
+          return;
+        }
+
+        try {
+          const index = await api.indexFiles(indexable, controller.signal, repo.path);
+          if (cancelled) return;
+          handleAnalyzed({
+            repo,
+            index,
+            indexNote: "Repository restored and its search index was rebuilt.",
+            indexFailed: false,
+          });
+        } catch (err) {
+          if (cancelled) return;
+          handleAnalyzed({
+            repo,
+            index: null,
+            indexNote: `Repository restored, but rebuilding its search index failed: ${err instanceof Error ? err.message : "unknown error"}`,
+            indexFailed: true,
+          });
+        }
+      } catch {
+        // Keep the dashboard usable when the previously scanned repository
+        // no longer exists or the backend is temporarily unavailable.
+      }
+    };
+
+    void restoreRepository();
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [reloadGraph, handleAnalyzed]);
 
   // Ctrl/Cmd+K opens the symbol finder from anywhere.
   useEffect(() => {
@@ -100,7 +173,7 @@ export default function Home() {
     [graph.data, view, blast.data, selectedId]
   );
 
-  const onWorkspace = view !== "overview" && view !== "codefix";
+  const onWorkspace = view !== "overview" && view !== "explain";
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
@@ -152,7 +225,12 @@ export default function Home() {
             />
           )}
 
-          {view === "codefix" && <CodeFixView />}
+          {view === "explain" && (
+            <CodeExplanationView
+              repositoryPath={analysis?.repo.path}
+              repositoryName={analysis?.repo.name}
+            />
+          )}
 
           {onWorkspace && <RepoSummaryBar analysis={analysis} onScan={openScanner} />}
 

@@ -1,20 +1,20 @@
 "use client";
 
 import React from "react";
-import { Crosshair, LayoutDashboard, Network, Wrench } from "lucide-react";
+import { BookOpenText, Crosshair, LayoutDashboard, Network } from "lucide-react";
 import type { GraphNode } from "@/lib/api";
 import { nodeColor } from "@/lib/graphTheme";
 
-export type View = "overview" | "graph" | "impact" | "codefix";
+export type View = "overview" | "graph" | "impact" | "explain";
 
 export const VIEW_META: Record<View, { label: string; description: string; icon: React.ComponentType<{ className?: string }> }> = {
   overview: { label: "Overview", description: "Repository and graph analytics", icon: LayoutDashboard },
   graph: { label: "Dependency Graph", description: "Explore code relationships", icon: Network },
   impact: { label: "Impact Analysis", description: "Blast radius of a change", icon: Crosshair },
-  codefix: { label: "AI Code Fix", description: "Generate and review code corrections", icon: Wrench },
+  explain: { label: "Code Explanation", description: "Understand code, architecture, and dependencies", icon: BookOpenText },
 };
 
-const ORDER: View[] = ["overview", "graph", "impact", "codefix"];
+const ORDER: View[] = ["overview", "graph", "impact", "explain"];
 
 interface NavProps {
   view: View;
