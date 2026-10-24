@@ -2,21 +2,21 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.endpoints import search
-from app.api.v1 import graph, health, archeology, llm, repositories, search as v1_search, symbols
+from app.api.v1 import archeology, graph, health, llm, repositories, search as v1_search, symbols
+from app.core.config import settings
 
 app = FastAPI(
     title="Code Archaeologist API",
-    version="0.1.0",
+    version=settings.VERSION,
     description="AST, Symbol Resolution, Vector Search, and Code Graph Analysis Service",
+    docs_url=None if settings.ENVIRONMENT == "production" else "/docs",
+    redoc_url=None if settings.ENVIRONMENT == "production" else "/redoc",
 )
 
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],
+    allow_origins=settings.ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
