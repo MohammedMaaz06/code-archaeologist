@@ -97,6 +97,53 @@ class GraphService:
             "total_impacted": max(0, len(visited) - 1)
         }
 
+    def get_file_dependencies(self, file_path: str) -> Dict[str, Any]:
+        """Return cross-file dependencies and dependents for a file in the graph.
+
+        The graph stores both file nodes and symbol nodes. This method maps
+        symbol-level CALLS/IMPORTS edges back to their containing source files,
+        and ignores CONTAINS edges within the same file.
+        """
+        requested_path = str(file_path).replace("\\", "/").removeprefix("./").casefold()
+        dependencies = set()
+        dependents = set()
+
+        def owning_file(node_id: Any, attributes: Dict[str, Any]) -> str:
+            node_type = str(attributes.get("node_type", "")).casefold()
+            if node_type == "file":
+                return str(node_id).replace("\\", "/").removeprefix("./")
+            path = attributes.get("file_path") or attributes.get("filePath")
+            if path:
+                return str(path).replace("\\", "/").removeprefix("./")
+            return ""
+
+        for source, target, edge_data in self.graph.edges(data=True):
+            relation = str(
+                edge_data.get("relationship")
+                or edge_data.get("relation")
+                or edge_data.get("edge_type")
+                or ""
+            ).casefold()
+            if relation in {"contains", "contained_in", "has_symbol"}:
+                continue
+
+            source_file = owning_file(source, self.graph.nodes[source])
+            target_file = owning_file(target, self.graph.nodes[target])
+            source_key = source_file.casefold()
+            target_key = target_file.casefold()
+
+            if source_key == requested_path and target_file and target_key != requested_path:
+                dependencies.add(target_file)
+            if target_key == requested_path and source_file and source_key != requested_path:
+                dependents.add(source_file)
+
+        return {
+            "file_path": file_path,
+            "dependencies": sorted(dependencies, key=str.casefold),
+            "dependents": sorted(dependents, key=str.casefold),
+            "dependency_count": len(dependencies),
+            "dependent_count": len(dependents),
+        }
     def export_graph(self) -> Dict[str, Any]:
         nodes = [{"id": node_id, **attrs} for node_id, attrs in self.graph.nodes(data=True)]
         edges = [{"source": u, "target": v, **attrs} for u, v, attrs in self.graph.edges(data=True)]

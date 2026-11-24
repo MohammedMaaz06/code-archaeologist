@@ -29,7 +29,7 @@ interface GraphExplorerProps {
 
 const MAX_SUGGESTIONS = 8;
 const LARGE_GRAPH = 1500;
-const FORCE_LAYOUT_MAX = 600;
+const FORCE_LAYOUT_MAX = 350;
 
 const impactClass = (depth: number) => `imp${Math.min(Math.max(depth, 1), IMPACT_COLORS.length)}`;
 
@@ -210,7 +210,7 @@ export default function GraphExplorer({
               nodeRepulsion: () => 24000,
               idealEdgeLength: () => 110,
               componentSpacing: 80,
-              numIter: 1000,
+              numIter: Math.max(120, Math.min(360, Math.round(36000 / Math.max(graph.nodes.length, 100)))),
               // Reserve room for labels on graphs small enough to afford the extra layout work.
               nodeDimensionsIncludeLabels: graph.nodes.length <= 500,
             } as cytoscape.LayoutOptions);
@@ -327,8 +327,8 @@ export default function GraphExplorer({
 
   // ---- render -------------------------------------------------------------
   return (
-    <div className="flex min-w-0 flex-col rounded-md border border-slate-800 bg-slate-900 shadow-sm">
-      <div className="border-b border-slate-800 px-4 py-3">
+    <div className="graph-workspace flex min-w-0 flex-col rounded-md border border-slate-800 bg-slate-900 shadow-sm">
+      <div className="graph-workspace-heading border-b border-slate-800 px-4 py-3">
         <h2 className="text-sm font-semibold text-slate-100">
           {mode === "impact" ? "Impact analysis" : "Code knowledge graph"}
         </h2>
@@ -340,7 +340,7 @@ export default function GraphExplorer({
       </div>
 
       {/* Toolbar: search + count + view controls */}
-      <div className="flex flex-col gap-2 border-b border-slate-800 p-3 sm:flex-row sm:items-center">
+      <div className="graph-toolbar flex flex-col gap-2 border-b border-slate-800 p-3 sm:flex-row sm:items-center">
         <div className="relative min-w-0 flex-1">
           <Search className="pointer-events-none absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-500" />
           <input
@@ -431,7 +431,7 @@ export default function GraphExplorer({
       </div>
 
       {/* Canvas + states */}
-      <div className="relative h-[460px] bg-slate-950 lg:h-[600px]">
+      <div className="graph-canvas relative h-[460px] bg-slate-950 lg:h-[600px]">
         {/* Cytoscape forces position:relative on its container, so size it explicitly instead of absolutely. */}
         {hasGraph && <div ref={containerRef} className="h-full w-full" />}
 
@@ -488,7 +488,7 @@ export default function GraphExplorer({
 
       {/* Legend + type filters */}
       {hasGraph && (
-        <div className="space-y-2 border-t border-slate-800 px-3 py-2.5 text-[11px]">
+        <div className="graph-legend space-y-2 border-t border-slate-800 px-3 py-2.5 text-[11px]">
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="mr-1 text-slate-500">Node types</span>
             {typeCounts.map(([type, count]) => {

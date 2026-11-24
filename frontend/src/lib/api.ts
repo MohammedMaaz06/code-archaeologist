@@ -338,6 +338,12 @@ export interface InvestigationResult {
 export interface ExplanationResponse {
   query: string;
   explanation: string;
+  raw_context?: {
+    matched_chunks?: Array<{
+      file_path: string;
+      lines: string;
+    }>;
+  };
 }
 
 const symbolQuery = (symbolId: string) => `symbol_id=${encodeURIComponent(symbolId)}`;

@@ -12,7 +12,42 @@ class LLMService:
     _citation_pattern = re.compile(r"\[([^\[\]]+):(\d+)(?:-(\d+))?\]")
 
     def __init__(self, api_url: Optional[str] = None):
-        self.api_url = api_url or "http://localhost:11434/api/generate"
+        self.api_url = api_url or "https://api.groq.com/openai/v1/chat/completions"
+        self.api_key = (
+            settings.GROQ_API_KEY.get_secret_value()
+            if settings.GROQ_API_KEY
+            else None
+        )
+        self.model = settings.GROQ_MODEL
+
+    def _generate_completion(self, prompt: str, timeout: int) -> Optional[str]:
+        if not self.api_key:
+            logger.warning("Groq API key is not configured; using repository evidence fallback.")
+            return None
+
+        payload = json.dumps({
+            "model": self.model,
+            "messages": [{"role": "user", "content": prompt}],
+        }).encode("utf-8")
+        req = urllib.request.Request(
+            self.api_url,
+            data=payload,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.api_key}",
+            },
+        )
+
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            if response.status != 200:
+                return None
+            data = json.loads(response.read().decode("utf-8"))
+        choices = data.get("choices", [])
+        if not choices:
+            return None
+        message = choices[0].get("message", {})
+        content = message.get("content")
+        return content.strip() if isinstance(content, str) and content.strip() else None
 
     def generate_explanation(self, context_digest: Dict[str, Any]) -> str:
         chunks = context_digest.get("matched_chunks", [])
@@ -21,32 +56,69 @@ class LLMService:
 
         prompt = self._build_prompt(context_digest)
 
+        if self.api_key:
+            try:
+                explanation = self._generate_completion(prompt, timeout=120)
+                if (
+                    explanation
+                    and "```" not in explanation
+                    and self._has_valid_citations(explanation, chunks)
+                ):
+                    return explanation
+                logger.info(
+                    "Groq returned no explanation with valid repository citations; "
+                    "trying local Ollama."
+                )
+            except Exception as e:
+                logger.info(
+                    "Groq LLM service unavailable (%s). Trying local Ollama.",
+                    str(e),
+                )
+
         try:
-            payload = json.dumps({
-                "model": "codellama:instruct",
-                "prompt": prompt,
-                "stream": False
-            }).encode("utf-8")
-
-            req = urllib.request.Request(
-                self.api_url,
-                data=payload,
-                headers={"Content-Type": "application/json"}
-            )
-
-            with urllib.request.urlopen(req, timeout=120) as response:
-                if response.status == 200:
-                    data = json.loads(response.read().decode("utf-8"))
-                    explanation = data.get("response", "").strip()
-                    if explanation and self._has_valid_citations(explanation, chunks):
-                        return explanation
-        except Exception as e:
+            explanation = self._generate_ollama_completion(prompt, timeout=120)
+            if (
+                explanation
+                and "```" not in explanation
+                and self._has_valid_citations(explanation, chunks)
+            ):
+                return explanation
             logger.info(
-                "Local LLM service unavailable (%s). Falling back to repository evidence.",
-                str(e),
+                "Ollama returned no explanation with valid repository citations."
             )
+        except Exception as e:
+            logger.info("Local Ollama service unavailable (%s).", str(e))
 
         return self._fallback_summary(context_digest)
+
+    def _generate_ollama_completion(
+        self,
+        prompt: str,
+        timeout: int,
+    ) -> Optional[str]:
+        ollama_host = settings.OLLAMA_HOST.rstrip("/")
+        model = settings.OLLAMA_MODEL
+        payload = json.dumps({
+            "model": model,
+            "prompt": prompt,
+            "stream": False,
+        }).encode("utf-8")
+        req = urllib.request.Request(
+            f"{ollama_host}/api/generate",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+        )
+
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            if response.status != 200:
+                return None
+            data = json.loads(response.read().decode("utf-8"))
+        explanation = data.get("response")
+        return (
+            explanation.strip()
+            if isinstance(explanation, str) and explanation.strip()
+            else None
+        )
 
     @classmethod
     def _has_valid_citations(
@@ -113,7 +185,7 @@ class LLMService:
         language: str = "python",
         context: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Generate a corrected version of source code using the local LLM."""
+        """Generate a corrected version of source code using Groq."""
         prompt = (
             "You are a careful software engineer fixing an existing codebase.\n\n"
             f"Language: {language}\n"
@@ -134,76 +206,60 @@ class LLMService:
         )
 
         try:
-            payload = json.dumps({
-                "model": "llama3.2:latest",
-                "prompt": prompt,
-                "stream": False
-            }).encode("utf-8")
+            corrected_code = self._generate_completion(prompt, timeout=60)
+            if corrected_code:
+                if corrected_code.startswith("```"):
+                    lines = corrected_code.splitlines()
 
-            req = urllib.request.Request(
-                self.api_url,
-                data=payload,
-                headers={"Content-Type": "application/json"}
-            )
+                    if lines and lines[0].strip().startswith("```"):
+                        lines = lines[1:]
 
-            with urllib.request.urlopen(req, timeout=60) as response:
-                if response.status == 200:
-                    data = json.loads(response.read().decode("utf-8"))
-                    corrected_code = data.get("response", "").strip()
+                    if lines and lines[-1].strip() == "```":
+                        lines = lines[:-1]
 
-                    if corrected_code:
-                        if corrected_code.startswith("```"):
-                            lines = corrected_code.splitlines()
+                    corrected_code = "\n".join(lines).strip()
 
-                            if lines and lines[0].strip().startswith("```"):
-                                lines = lines[1:]
+                original_lines = [
+                    f"{line}\n"
+                    for line in source_code.splitlines()
+                ]
+                corrected_lines = [
+                    f"{line}\n"
+                    for line in corrected_code.splitlines()
+                ]
 
-                            if lines and lines[-1].strip() == "```":
-                                lines = lines[:-1]
+                diff = "".join(
+                    difflib.unified_diff(
+                        original_lines,
+                        corrected_lines,
+                        fromfile="original",
+                        tofile="corrected",
+                    )
+                )
 
-                            corrected_code = "\n".join(lines).strip()
+                validation = self._validate_generated_code(
+                    corrected_code,
+                    language,
+                )
 
-                        original_lines = [
-                            f"{line}\n"
-                            for line in source_code.splitlines()
-                        ]
-                        corrected_lines = [
-                            f"{line}\n"
-                            for line in corrected_code.splitlines()
-                        ]
+                status = (
+                    "validation_failed"
+                    if validation["validation_status"] == "failed"
+                    else "success"
+                )
 
-                        diff = "".join(
-                            difflib.unified_diff(
-                                original_lines,
-                                corrected_lines,
-                                fromfile="original",
-                                tofile="corrected",
-                            )
-                        )
-
-                        validation = self._validate_generated_code(
-                            corrected_code,
-                            language,
-                        )
-
-                        status = (
-                            "validation_failed"
-                            if validation["validation_status"] == "failed"
-                            else "success"
-                        )
-
-                        return {
-                            "status": status,
-                            "original_code": source_code,
-                            "corrected_code": corrected_code,
-                            "diff": diff,
-                            "changed": source_code != corrected_code,
-                            "model": "llama3.2:latest",
-                            **validation,
-                        }
+                return {
+                    "status": status,
+                    "original_code": source_code,
+                    "corrected_code": corrected_code,
+                    "diff": diff,
+                    "changed": source_code != corrected_code,
+                    "model": self.model,
+                    **validation,
+                }
 
         except Exception as e:
-            logger.info(f"Local LLM code-fix service unavailable ({str(e)}).")
+            logger.info("Groq LLM code-fix service unavailable (%s).", str(e))
 
         return {
             "status": "unavailable",
@@ -211,7 +267,7 @@ class LLMService:
             "corrected_code": None,
             "diff": "",
             "changed": False,
-            "model": "llama3.2:latest",
+            "model": self.model,
         }
 
     def _build_prompt(self, context_digest: Dict[str, Any]) -> str:
@@ -220,13 +276,18 @@ class LLMService:
         deps = context_digest.get("dependency_context", {})
 
         prompt = (
-            "Answer the user's question using only the repository evidence below. "
-            "Do not rely on prior knowledge, assume a repository identity, or invent "
-            "files, modules, functions, dependencies, or behavior. If the evidence "
-            "does not answer the question, say so clearly. Cite every repository-specific "
-            "factual claim using the exact format [path/to/file:START-END], where the "
-            "path and line range appear in the supplied evidence. Do not cite any other "
-            "source.\n\n"
+            "Answer the user's question directly and accurately using only the repository "
+            "evidence below. Keep the answer concise: usually 1-3 sentences and no more "
+            "than 100 words unless the user explicitly asks for detail. Do not add a generic "
+            "introduction, repeat the question, or include unrelated observations. Never "
+            "guess or rely on prior knowledge. If the evidence is insufficient to answer, "
+            "say exactly what could not be determined from the retrieved code. Cite every "
+            "repository-specific factual claim with the exact format [path/to/file:START-END], "
+            "using only paths and line ranges present in the supplied evidence. Do not cite "
+            "any other source. Write a plain-language explanation in sentences only. Never "
+            "output source code, code snippets, fenced blocks, raw evidence listings, or a "
+            "report-style heading. Even when asked to explain code, describe what it does "
+            "instead of reproducing it.\n\n"
             f"Question: {query}\n\n"
             "Retrieved repository evidence:\n"
         )
@@ -241,29 +302,18 @@ class LLMService:
         return prompt
 
     def _fallback_summary(self, context_digest: Dict[str, Any]) -> str:
-        query = context_digest.get("query", "Query")
-        files = context_digest.get("relevant_files", [])
         chunks = context_digest.get("matched_chunks", [])
-
-        summary = f"### Code Analysis Report for '{query}'\n\n"
-        summary += f"**Relevant Files**: {', '.join(files) if files else 'None'}\n\n"
-        summary += "**Key Identified Symbols & Code Regions**:\n"
-        for c in chunks:
-            summary += f"- **{c.get('symbol_name', 'Block')}** in `{c.get('file_path')}` (Lines {c.get('lines')})\n"
-            content = c.get("content", "").strip()
-            if content:
-                summary += f"\n  ```\n  {content}\n  ```\n"
-
         if chunks:
-            summary += (
-                "\n**Evidence note**: This is a listing of retrieved repository evidence, "
-                "not a verified explanation. No unsupported architecture or project details "
-                "are inferred."
+            source = chunks[0]
+            file_path = source.get("file_path")
+            lines = source.get("lines")
+            citation = f" [{file_path}:{lines}]" if file_path and lines else ""
+            return (
+                "I found relevant source code, but could not produce a reliable explanation "
+                f"for it right now.{citation}"
             )
-        else:
-            summary += (
-                "\n**Evidence note**: No relevant source snippets were retrieved, so this "
-                "question cannot be answered from the indexed repository. Scan and index "
-                "the repository, then try again."
-            )
-        return summary
+
+        return (
+            "I couldn't find relevant source code for this question. Try asking about a "
+            "specific symbol, file, or behavior, or scan and index the repository."
+        )

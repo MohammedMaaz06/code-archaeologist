@@ -16,7 +16,7 @@ export default function RepoSummaryBar({ analysis, onScan }: { analysis: Analysi
     : [];
 
   return (
-    <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-md border border-slate-800 bg-slate-900 px-4 py-2.5 shadow-sm">
+    <div className="repo-summary-bar flex flex-wrap items-center gap-x-5 gap-y-2 rounded-md border border-slate-800 bg-slate-900 px-4 py-2.5 shadow-sm">
       <div className="flex min-w-0 items-center gap-2">
         <FolderGit2 className="h-4 w-4 shrink-0 text-slate-500" />
         {analysis ? (

@@ -11,3 +11,5 @@ dist/
 *.pyc
 *.pyo
 *.log
+# TypeScript build cache
+*.tsbuildinfo

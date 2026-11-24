@@ -1,6 +1,7 @@
+from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import field_validator, model_validator
+from pydantic import SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -19,9 +20,13 @@ class Settings(BaseSettings):
     POSTGRES_PASSWORD: str = "change-me-in-production"
     POSTGRES_DB: str = "code_archaeologist"
     DATABASE_URL: str | None = None
+    GROQ_API_KEY: SecretStr | None = None
+    GROQ_MODEL: str = "openai/gpt-oss-120b"
+    OLLAMA_HOST: str = "http://localhost:11434"
+    OLLAMA_MODEL: str = "llama3"
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=Path(__file__).resolve().parents[3] / ".env",
         env_file_encoding="utf-8",
         extra="ignore",
     )

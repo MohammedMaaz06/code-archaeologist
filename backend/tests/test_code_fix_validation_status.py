@@ -1,9 +1,15 @@
 ﻿from unittest.mock import patch
 
+from pydantic import SecretStr
+
 from app.services.llm_service import LLMService
 
 
-def test_code_fix_returns_success_for_valid_python():
+def test_code_fix_returns_success_for_valid_python(monkeypatch):
+    monkeypatch.setattr(
+        "app.services.llm_service.settings.GROQ_API_KEY",
+        SecretStr("test-groq-key"),
+    )
     service = LLMService()
 
     with patch(
@@ -12,7 +18,7 @@ def test_code_fix_returns_success_for_valid_python():
         mock_response = mock_urlopen.return_value.__enter__.return_value
         mock_response.status = 200
         mock_response.read.return_value = (
-            b'{"response":"def add(a, b):\\n    return a + b"}'
+            b'{"choices":[{"message":{"content":"def add(a, b):\\n    return a + b"}}]}'
         )
 
         result = service.generate_code_fix(
@@ -25,7 +31,11 @@ def test_code_fix_returns_success_for_valid_python():
     assert result["validation_status"] == "passed"
 
 
-def test_code_fix_returns_validation_failed_for_invalid_python():
+def test_code_fix_returns_validation_failed_for_invalid_python(monkeypatch):
+    monkeypatch.setattr(
+        "app.services.llm_service.settings.GROQ_API_KEY",
+        SecretStr("test-groq-key"),
+    )
     service = LLMService()
 
     with patch(
@@ -34,7 +44,7 @@ def test_code_fix_returns_validation_failed_for_invalid_python():
         mock_response = mock_urlopen.return_value.__enter__.return_value
         mock_response.status = 200
         mock_response.read.return_value = (
-            b'{"response":"def add(a, b)\\n    return a + b"}'
+            b'{"choices":[{"message":{"content":"def add(a, b)\\n    return a + b"}}]}'
         )
 
         result = service.generate_code_fix(

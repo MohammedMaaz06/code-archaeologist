@@ -81,7 +81,7 @@ export default function ImpactPanel({
 
   if (!id) {
     return (
-      <div className="flex flex-col items-center gap-3 p-6 text-center">
+      <div className="impact-panel flex flex-col items-center gap-3 p-6 text-center">
         <MousePointerClick className="h-6 w-6 text-slate-600" />
         <div>
           <h3 className="text-sm font-semibold text-slate-100">Impact analysis</h3>
@@ -98,7 +98,7 @@ export default function ImpactPanel({
   const label = node?.label ?? id;
 
   return (
-    <div className="space-y-4 p-4">
+    <div className="impact-panel space-y-4 p-4">
       <div className="space-y-2">
         <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Selected symbol</p>
         <div className="flex items-start justify-between gap-2">

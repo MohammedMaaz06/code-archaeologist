@@ -1,18 +1,25 @@
 "use client";
 
 import React, { useState } from "react";
-import { BookOpenText, Loader2, Sparkles } from "lucide-react";
+import { ArrowUpRight, FileCode2, Loader2, MessageSquareText, Sparkles } from "lucide-react";
 import { Panel } from "@/components/ui";
 import { api, type ExplanationResponse } from "@/lib/api";
 
-const fieldClass =
-  "w-full rounded-md border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-200 outline-none placeholder:text-slate-600 focus:border-sky-600";
-
-const suggestions = [
-  "Explain the main architecture of this repository.",
-  "How do the main modules depend on each other?",
-  "Explain the purpose of the key functions and classes.",
+const questions = [
+  { label: "Understand a symbol", value: "What does [symbol name] do?" },
+  { label: "Trace a request", value: "How does [request or action] flow through the code?" },
+  { label: "Find implementation", value: "Where is [behavior] implemented?" },
 ];
+
+function renderCitedAnswer(answer: string) {
+  return answer.split(/(\[[^\]]+:\d+(?:-\d+)?\])/g).map((part, index) =>
+    /^\[[^\]]+:\d+(?:-\d+)?\]$/.test(part) ? (
+      <span key={index} className="explanation-citation">{part}</span>
+    ) : (
+      <React.Fragment key={index}>{part}</React.Fragment>
+    )
+  );
+}
 
 export default function CodeExplanationView({
   repositoryPath,
@@ -21,7 +28,7 @@ export default function CodeExplanationView({
   repositoryPath?: string;
   repositoryName?: string;
 }) {
-  const [query, setQuery] = useState(suggestions[0]);
+  const [query, setQuery] = useState("");
   const [result, setResult] = useState<ExplanationResponse | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -31,7 +38,7 @@ export default function CodeExplanationView({
     const prompt = query.trim();
 
     if (!prompt) {
-      setError("Enter a question about the repository first.");
+      setError("Ask a specific question about a symbol, file, or behavior.");
       setResult(null);
       return;
     }
@@ -46,9 +53,9 @@ export default function CodeExplanationView({
     setResult(null);
 
     try {
-      const response = await api.explain(prompt, 5, repositoryPath);
+      const response = await api.explain(prompt, 3, repositoryPath);
       if (!response.explanation?.trim()) {
-        setError("The service did not return an explanation. Check the backend logs and try again.");
+        setError("No explanation came back. Try again or check the backend logs.");
       } else {
         setResult(response);
       }
@@ -59,75 +66,124 @@ export default function CodeExplanationView({
     }
   };
 
+  const sources = result?.raw_context?.matched_chunks
+    ? [...new Map(
+        result.raw_context.matched_chunks.map((source) => [
+          `${source.file_path}:${source.lines}`,
+          source,
+        ])
+      ).values()]
+    : [];
+
   return (
-    <div className="space-y-4">
+    <div className="explanation-workspace dashboard-view-enter">
       <Panel
-        title="Code Explanation"
+        title="Ask about the code"
         subtitle={
           repositoryName
-            ? `Ask about ${repositoryName}'s architecture, modules, functions, and dependencies.`
-            : "Scan a repository before asking questions about its architecture, modules, functions, and dependencies."
-        }
-        actions={
-          <div className="flex items-center gap-2 text-[10px] text-slate-500">
-            <BookOpenText className="h-3.5 w-3.5" />
-            <span>Repository-aware answers</span>
-          </div>
+            ? `Answers about ${repositoryName}, grounded in its indexed source.`
+            : "Scan and index a repository to get answers grounded in its source."
         }
       >
-        <form onSubmit={explainCode} className="space-y-4 p-4">
-          <div>
-            <label htmlFor="code-explanation-question" className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-              What do you want to understand?
-            </label>
+        <form onSubmit={explainCode} className="explanation-form">
+          <label htmlFor="code-explanation-question" className="explanation-label">
+            One clear question works best
+          </label>
+          <div className="explanation-input-wrap">
+            <MessageSquareText className="explanation-input-icon h-4 w-4" aria-hidden="true" />
             <textarea
               id="code-explanation-question"
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Example: Explain how the API request flows through the main modules."
-              rows={4}
-              className={`${fieldClass} resize-y leading-relaxed`}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                if (error) setError("");
+              }}
+              placeholder="For example: What calls resolve_repository_path, and what does it return?"
+              rows={3}
+              maxLength={500}
+              className="explanation-input"
             />
+            <span className="explanation-character-count">{query.length}/500</span>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            {suggestions.map((suggestion) => (
+          <div className="explanation-question-row">
+            <span className="explanation-hint">Try asking</span>
+            {questions.map((question) => (
               <button
-                key={suggestion}
+                key={question.label}
                 type="button"
-                onClick={() => setQuery(suggestion)}
-                className="rounded-md border border-slate-800 px-2.5 py-1.5 text-left text-[11px] text-slate-400 transition-colors hover:border-slate-700 hover:text-slate-200"
+                onClick={() => {
+                  setQuery(question.value);
+                  setError("");
+                }}
+                className="explanation-question-chip"
               >
-                {suggestion}
+                {question.label}
               </button>
             ))}
+            <span className="explanation-hint explanation-question-note">
+              Replace the bracketed text with a name or behavior.
+            </span>
           </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="inline-flex items-center gap-2 rounded-md bg-sky-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-            {loading ? "Explaining repositoryâ€¦" : "Explain code"}
-          </button>
+          <div className="explanation-submit-row">
+            <p className="explanation-promise">
+              <Sparkles className="h-3.5 w-3.5" />
+              Concise answers. No guessing beyond the indexed code.
+            </p>
+            <button
+              type="submit"
+              disabled={loading}
+              className="explanation-submit"
+            >
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUpRight className="h-4 w-4" />}
+              {loading ? "Reading the code…" : "Get an explanation"}
+            </button>
+          </div>
         </form>
       </Panel>
 
       {error && (
-        <div role="alert" className="rounded-md border border-amber-900/60 bg-amber-950/20 px-3 py-2 text-xs text-amber-300">
+        <div role="alert" className="explanation-error">
           {error}
         </div>
       )}
 
       {result && (
-        <Panel title="Explanation" subtitle={`Question: ${result.query || query.trim()}`}>
-          <div className="whitespace-pre-wrap break-words p-4 text-sm leading-7 text-slate-300">
-            {result.explanation}
+        <Panel
+          className="explanation-result"
+          title="Explanation"
+          subtitle={result.query || query.trim()}
+          actions={
+            sources.length > 0 ? (
+              <span className="explanation-source-count">
+                {sources.length} {sources.length === 1 ? "source" : "sources"}
+              </span>
+            ) : undefined
+          }
+        >
+          <div className="explanation-answer">
+            {renderCitedAnswer(result.explanation)}
           </div>
-          <div className="border-t border-slate-800 px-4 py-2 text-[10px] text-slate-500">
-            Review explanations against the source code before using them to make changes.
-          </div>
+          {sources.length > 0 && (
+            <div className="explanation-sources">
+              <p className="explanation-sources-title">From the repository</p>
+              <div className="explanation-source-list">
+                {sources.map((source) => (
+                  <div
+                    key={`${source.file_path}:${source.lines}`}
+                    className="explanation-source"
+                  >
+                    <FileCode2 className="h-3.5 w-3.5 shrink-0" />
+                    <span className="explanation-source-path" title={source.file_path}>
+                      {source.file_path}
+                    </span>
+                    <span className="explanation-source-lines">lines {source.lines}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </Panel>
       )}
     </div>

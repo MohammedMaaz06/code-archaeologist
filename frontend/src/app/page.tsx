@@ -1,19 +1,29 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { ChevronRight } from "lucide-react";
+import BrandMark from "@/components/BrandMark";
 import Header from "@/components/Header";
 import Sidebar, { MobileNav, VIEW_META, type View } from "@/components/Sidebar";
 import RepositoryPanel, { type Analysis } from "@/components/RepositoryPanel";
 import RepoSummaryBar from "@/components/RepoSummaryBar";
 import OverviewView from "@/components/OverviewView";
-import GraphExplorer, { type FocusRequest } from "@/components/GraphExplorer";
+import type { FocusRequest } from "@/components/GraphExplorer";
 import NodeInspector from "@/components/NodeInspector";
 import ImpactPanel from "@/components/ImpactPanel";
 import CodeExplanationView from "@/components/CodeExplanationView";
-import CommandPalette from "@/components/CommandPalette";
+import StartupLoader from "@/components/StartupLoader";
 import { api, languageFromPath, type GraphNode } from "@/lib/api";
 import { useApiResource } from "@/lib/useApiResource";
+
+const GraphExplorer = dynamic(() => import("@/components/GraphExplorer"), {
+  loading: () => <div className="graph-loading-placeholder" aria-label="Loading graph tools" />,
+  ssr: false,
+});
+const CommandPalette = dynamic(() => import("@/components/CommandPalette"), {
+  ssr: false,
+});
 
 const LAST_REPOSITORY_KEY = "code-archaeologist:last-repository-path";
 
@@ -176,15 +186,19 @@ export default function Home() {
   const onWorkspace = view !== "overview" && view !== "explain";
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
+    <div className="app-shell min-h-screen bg-slate-950 text-slate-100">
       <Header
+        className="dashboard-start-header"
         scannerOpen={scannerOpen}
+        repositoryName={analysis?.repo.name}
+        repositoryIndexed={Boolean(analysis?.index && !analysis.indexFailed)}
         onToggleScanner={() => (scannerOpen ? setScannerOpen(false) : openScanner())}
         onOpenPalette={() => setPaletteOpen(true)}
       />
 
-      <div className="lg:flex">
+      <div className="dashboard-layout lg:flex">
         <Sidebar
+          className="dashboard-start-sidebar"
           view={view}
           onChange={go}
           badges={badges}
@@ -193,18 +207,87 @@ export default function Home() {
           onOpenPalette={() => setPaletteOpen(true)}
         />
 
-        <main className="min-w-0 flex-1 space-y-4 px-4 py-4 sm:px-6 lg:py-6">
+        <main className="dashboard-main dashboard-start-main min-w-0 flex-1 space-y-5">
           <MobileNav view={view} onChange={go} badges={badges} />
 
-          <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-xs text-slate-500">
-            <span>{analysis?.repo.name ?? "Workspace"}</span>
-            <ChevronRight className="h-3 w-3" />
-            <span className="font-medium text-slate-300">{VIEW_META[view].label}</span>
-            <span className="hidden text-slate-500 sm:inline">· {VIEW_META[view].description}</span>
-          </nav>
+          {view === "overview" ? (
+            <section className="dashboard-hero dashboard-view-enter">
+              <div className="page-heading-copy">
+                <p className="page-eyebrow">
+                  <span className="hero-eyebrow-dot" />
+                  CODEBASE INTELLIGENCE
+                  <span className="hero-eyebrow-divider">/</span>
+                  OVERVIEW
+                </p>
+                <h2 className="page-title">
+                  {analysis ? `Inside ${analysis.repo.name}` : <>Your codebase,<br />in focus.</>}
+                </h2>
+                <p className="page-description">
+                  {analysis
+                    ? "A living map of your files, symbols, and the connections that shape your system."
+                    : "Map the structure behind your software. Trace relationships, surface hotspots, and see the impact of change."}
+                </p>
+                <div className="hero-actions">
+                  <button type="button" onClick={openScanner} className="hero-primary-action">
+                    {analysis ? "Scan another repository" : "Start a repository scan"}
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                  <span className="hero-action-note">Local folder or public Git URL</span>
+                </div>
+              </div>
+              <div className="hero-visual" aria-hidden="true">
+                <div className="hero-visual-grid" />
+                <svg className="hero-graph-art" viewBox="0 0 300 230" fill="none">
+                  <path d="M65 56 137 92 222 49M65 56l19 99 53-63 43 93 42-40M137 92l44-3 41 40" stroke="currentColor" strokeOpacity=".35" strokeWidth="1.5" />
+                  <path d="m84 155 95 26 43-52M137 92l44-3" stroke="currentColor" strokeOpacity=".18" strokeWidth="1" strokeDasharray="3 5" />
+                  <circle cx="65" cy="56" r="6" fill="#D8A875" />
+                  <circle cx="137" cy="92" r="9" fill="#F4F2E8" />
+                  <circle cx="222" cy="49" r="5" fill="#94B89A" />
+                  <circle cx="84" cy="155" r="5" fill="#94B89A" />
+                  <circle cx="179" cy="181" r="7" fill="#D8A875" />
+                  <circle cx="224" cy="141" r="9" fill="#F4F2E8" />
+                  <circle cx="181" cy="89" r="4" fill="#94B89A" />
+                  <circle cx="137" cy="92" r="15" stroke="white" strokeOpacity=".18" />
+                  <circle cx="224" cy="141" r="16" stroke="white" strokeOpacity=".14" />
+                </svg>
+                <div className="hero-visual-caption">
+                  <span className="hero-visual-pulse" />
+                  <span>{analysis ? "Repository map ready" : "Ready to map your code"}</span>
+                </div>
+                <div className="hero-visual-brand"><BrandMark className="hero-brand-mark" /></div>
+              </div>
+              {analysis && (
+                <div className="hero-status">
+                  <span className={`hero-status-dot ${analysis.index && !analysis.indexFailed ? "is-ready" : "is-pending"}`} />
+                  {analysis.index && !analysis.indexFailed ? "INDEX UP TO DATE" : "REPOSITORY SCANNED"}
+                </div>
+              )}
+            </section>
+          ) : (
+            <section className="workspace-heading dashboard-view-enter">
+              <div className="workspace-heading-copy">
+                <p className="workspace-heading-eyebrow">
+                  <span className="hero-eyebrow-dot" />
+                  {analysis?.repo.name ?? "CODEBASE WORKSPACE"}
+                  <span className="hero-eyebrow-divider">/</span>
+                  {view === "graph" ? "SYSTEM MAP" : view === "impact" ? "CHANGE ANALYSIS" : "CODE INSIGHTS"}
+                </p>
+                <h2>{VIEW_META[view].label}</h2>
+                <p>{VIEW_META[view].description}</p>
+              </div>
+              {view !== "explain" && (
+                <div className="workspace-heading-count">
+                  <span className="workspace-count-icon"><BrandMark className="workspace-count-mark" /></span>
+                  <span><strong>{graph.data?.nodes.length.toLocaleString() ?? "—"}</strong><small>GRAPH NODES</small></span>
+                  <span className="workspace-count-divider" />
+                  <span><strong>{graph.data?.edges.length.toLocaleString() ?? "—"}</strong><small>RELATIONSHIPS</small></span>
+                </div>
+              )}
+            </section>
+          )}
 
           {/* Kept mounted (hidden outside Overview) so an in-flight scan is never aborted by navigating. */}
-          <div className={view === "overview" ? "block" : "hidden"}>
+          <div className={`overview-repository-stage ${view === "overview" ? "block" : "hidden"}`}>
             <RepositoryPanel
               analysis={analysis}
               graph={graph.data}
@@ -235,7 +318,7 @@ export default function Home() {
           {onWorkspace && <RepoSummaryBar analysis={analysis} onScan={openScanner} />}
 
           {graphVisited && (
-            <div className={onWorkspace ? "grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_380px]" : "hidden"}>
+            <div className={`workspace-graph-stage grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_380px] ${onWorkspace ? "" : "hidden"}`}>
               <GraphExplorer
                 graph={graph.data}
                 loading={graph.loading}
@@ -252,7 +335,7 @@ export default function Home() {
 
               <aside
                 aria-label={view === "impact" ? "Impact analysis" : "Symbol inspector"}
-                className="max-h-[640px] min-h-[200px] overflow-y-auto rounded-md border border-slate-800 bg-slate-900 shadow-sm xl:h-[calc(600px+12rem)] xl:max-h-none"
+                className="inspector-panel max-h-[640px] min-h-[200px] overflow-y-auto rounded-md border border-slate-800 bg-slate-900 shadow-sm xl:h-[calc(600px+12rem)] xl:max-h-none"
               >
                 {view === "impact" ? (
                   <ImpactPanel
@@ -284,15 +367,18 @@ export default function Home() {
         </main>
       </div>
 
-      <CommandPalette
-        open={paletteOpen}
-        nodes={graph.data?.nodes ?? []}
-        onClose={() => setPaletteOpen(false)}
-        onPick={(id, target) => {
-          setPaletteOpen(false);
-          openSymbol(id, target);
-        }}
-      />
+      {paletteOpen && (
+        <CommandPalette
+          open
+          nodes={graph.data?.nodes ?? []}
+          onClose={() => setPaletteOpen(false)}
+          onPick={(id, target) => {
+            setPaletteOpen(false);
+            openSymbol(id, target);
+          }}
+        />
+      )}
+      <StartupLoader />
     </div>
   );
 }

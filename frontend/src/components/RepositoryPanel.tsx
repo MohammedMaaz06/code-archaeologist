@@ -183,8 +183,8 @@ export default function RepositoryPanel({ analysis, graph, scannerOpen, onAnalyz
   const showForm = scannerOpen || (!analysis && phase === "idle");
 
   return (
-    <section aria-label="Repository" className="rounded-md border border-slate-800 bg-slate-900 shadow-sm">
-      <div className="flex items-center justify-between gap-3 border-b border-slate-800 px-4 py-3">
+    <section aria-label="Repository" className="repository-panel rounded-md border border-slate-800 bg-slate-900 shadow-sm">
+      <div className="repository-header flex items-center justify-between gap-3 border-b border-slate-800 px-4 py-3">
         <div className="flex min-w-0 items-center gap-2.5">
           <FolderGit2 className="h-4 w-4 shrink-0 text-slate-500" />
           <div className="min-w-0">
@@ -286,7 +286,7 @@ export default function RepositoryPanel({ analysis, graph, scannerOpen, onAnalyz
       )}
 
       {!analysis && (
-        <ol aria-label="How it works" className="grid divide-y divide-slate-800 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+        <ol aria-label="How it works" className="repository-howto grid divide-y divide-slate-800 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
           {STEPS.map((step, i) => (
             <li key={step.title} className="flex gap-3 px-4 py-3.5">
               <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-slate-700 font-mono text-[11px] text-slate-400">
@@ -303,7 +303,7 @@ export default function RepositoryPanel({ analysis, graph, scannerOpen, onAnalyz
 
       {analysis && (
         <>
-          <dl className="grid grid-cols-2 divide-x divide-y divide-slate-800 sm:grid-cols-3 lg:grid-cols-6 lg:divide-y-0">
+          <dl className="repository-stats grid grid-cols-2 divide-x divide-y divide-slate-800 sm:grid-cols-3 lg:grid-cols-6 lg:divide-y-0">
             <Stat label="Files" value={fmt(analysis.repo.total_files)} />
             <Stat label="Lines of code" value={fmt(analysis.repo.total_loc)} />
             <Stat label="Indexed files" value={fmt(analysis.index?.indexed_files)} />

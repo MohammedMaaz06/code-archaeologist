@@ -25,9 +25,9 @@ interface NavProps {
 
 export function MobileNav({ view, onChange, badges }: NavProps) {
   return (
-    <nav aria-label="Primary (mobile)" className="-mx-4 flex gap-1 overflow-x-auto border-b border-slate-800 px-4 sm:-mx-6 sm:px-6 lg:hidden">
+    <nav aria-label="Primary (mobile)" className="mobile-nav -mx-4 flex gap-1 overflow-x-auto border-b border-slate-800 px-4 sm:-mx-6 sm:px-6 lg:hidden">
       {ORDER.map((id) => {
-        const { label } = VIEW_META[id];
+        const { label, icon: Icon } = VIEW_META[id];
         const active = view === id;
         return (
           <button
@@ -39,6 +39,7 @@ export function MobileNav({ view, onChange, badges }: NavProps) {
               active ? "border-sky-500 text-slate-100" : "border-transparent text-slate-500 hover:text-slate-300"
             }`}
           >
+            <Icon className="mobile-nav-icon" />
             {label}
             {badges[id] && <span className="ml-1.5 font-mono text-[10px] text-slate-500">{badges[id]}</span>}
           </button>
@@ -49,17 +50,18 @@ export function MobileNav({ view, onChange, badges }: NavProps) {
 }
 
 interface SidebarProps extends NavProps {
+  className?: string;
   selected: GraphNode | null;
   selectedId: string | null;
   onOpenPalette: () => void;
 }
 
-export default function Sidebar({ view, onChange, badges, selected, selectedId, onOpenPalette }: SidebarProps) {
+export default function Sidebar({ className = "", view, onChange, badges, selected, selectedId, onOpenPalette }: SidebarProps) {
   return (
-    <aside className="sticky top-14 hidden h-[calc(100vh-3.5rem)] w-60 shrink-0 flex-col justify-between border-r border-slate-800 bg-slate-900 lg:flex">
-      <div className="px-3 py-4">
-        <p className="px-2 pb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-500">Workspace</p>
-        <nav aria-label="Primary" className="space-y-0.5">
+    <aside className={`dashboard-sidebar sticky hidden w-60 shrink-0 flex-col justify-between border-r lg:flex ${className}`}>
+      <div className="px-3 py-5">
+        <p className="sidebar-section-label px-2 pb-3">Workspace</p>
+        <nav aria-label="Primary" className="sidebar-nav space-y-1">
           {ORDER.map((id) => {
             const { label, icon: Icon } = VIEW_META[id];
             const active = view === id;
@@ -69,11 +71,11 @@ export default function Sidebar({ view, onChange, badges, selected, selectedId, 
                 type="button"
                 aria-current={active ? "page" : undefined}
                 onClick={() => onChange(id)}
-                className={`group relative flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-[13px] transition-colors ${
-                  active ? "bg-slate-800 font-medium text-slate-100" : "text-slate-400 hover:bg-slate-950 hover:text-slate-100"
+                className={`sidebar-nav-item group relative flex w-full items-center gap-2.5 rounded-md px-2.5 py-2.5 text-left text-[13px] transition-colors ${
+                  active ? "bg-[#edf2e9] font-semibold text-slate-100" : "text-slate-400 hover:bg-slate-950 hover:text-slate-100"
                 }`}
               >
-                {active && <span className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-sky-600" />}
+                {active && <span className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-sky-600" />}
                 <Icon className={`h-4 w-4 shrink-0 ${active ? "text-sky-600" : "text-slate-500 group-hover:text-slate-300"}`} />
                 <span className="flex-1 truncate">{label}</span>
                 {badges[id] && <span className="font-mono text-[11px] tabular-nums text-slate-500">{badges[id]}</span>}
@@ -85,14 +87,15 @@ export default function Sidebar({ view, onChange, badges, selected, selectedId, 
         <button
           type="button"
           onClick={onOpenPalette}
-          className="mt-4 w-full rounded-md border border-dashed border-slate-700 px-2.5 py-2 text-left text-xs text-slate-500 transition-colors hover:border-slate-600 hover:text-slate-300"
+          className="sidebar-search mt-4 w-full rounded-md border border-dashed border-slate-700 px-2.5 py-2.5 text-left text-xs text-slate-500 transition-colors hover:border-slate-600 hover:text-slate-300"
         >
+          <span className="sidebar-search-icon"><span /></span>
           Find a symbol…
         </button>
       </div>
 
-      <div className="border-t border-slate-800 px-4 py-3">
-        <p className="pb-1.5 text-[10px] font-semibold uppercase tracking-widest text-slate-500">Selected symbol</p>
+      <div className="sidebar-selection border-t border-slate-800 px-4 py-4">
+        <p className="sidebar-section-label pb-2">Selected symbol</p>
         {selectedId ? (
           <div className="min-w-0 space-y-1">
             <p className="flex items-center gap-2 truncate text-xs font-medium text-slate-100">

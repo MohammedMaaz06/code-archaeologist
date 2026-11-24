@@ -13,7 +13,7 @@ export function Panel({
   bodyClassName?: string;
 }) {
   return (
-    <section className={`min-w-0 rounded-md border border-slate-800 bg-slate-900 shadow-sm ${className}`}>
+    <section className={`dashboard-panel min-w-0 rounded-md border border-slate-800 bg-slate-900 shadow-sm ${className}`}>
       {title && (
         <header className="flex items-start justify-between gap-3 border-b border-slate-800 px-4 py-3">
           <div className="min-w-0">
@@ -37,14 +37,14 @@ export function Kpi({
   icon: React.ComponentType<{ className?: string }>;
 }) {
   return (
-    <div className="flex items-start gap-3 rounded-md border border-slate-800 bg-slate-900 px-4 py-3.5 shadow-sm">
-      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-slate-950 text-slate-400">
+    <div className="dashboard-kpi flex items-start gap-3 rounded-md border shadow-sm">
+      <span className="dashboard-kpi-icon mt-0.5 flex shrink-0 items-center justify-center">
         <Icon className="h-4 w-4" />
       </span>
       <div className="min-w-0">
-        <p className="text-[11px] font-medium uppercase tracking-wider text-slate-500">{label}</p>
-        <p className="mt-0.5 truncate font-mono text-xl font-semibold tabular-nums text-slate-100">{value}</p>
-        {hint && <p className="mt-0.5 truncate text-[11px] text-slate-500">{hint}</p>}
+        <p className="dashboard-kpi-label font-medium uppercase">{label}</p>
+        <p className="dashboard-kpi-value truncate tabular-nums">{value}</p>
+        {hint && <p className="dashboard-kpi-hint truncate">{hint}</p>}
       </div>
     </div>
   );

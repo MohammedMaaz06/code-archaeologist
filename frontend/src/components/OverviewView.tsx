@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo } from "react";
-import { AlertTriangle, Boxes, Flame, FileCode2, GitFork, RefreshCw, Share2, Unlink } from "lucide-react";
+import { AlertTriangle, ArrowUpRight, Boxes, Flame, FileCode2, GitFork, Network, RefreshCw, Share2, Unlink } from "lucide-react";
 import type { KnowledgeGraphData } from "@/lib/api";
 import { analyzeGraph } from "@/lib/graphAnalytics";
 import { DEFAULT_EDGE_COLOR, EDGE_COLORS, nodeColor } from "@/lib/graphTheme";
@@ -24,7 +24,7 @@ export default function OverviewView({ graph, loading, error, onRetry, onScan, o
 
   if (loading) {
     return (
-      <div className="space-y-4" aria-busy="true" aria-label="Loading graph analytics">
+      <div className="dashboard-overview dashboard-view-enter space-y-4" aria-busy="true" aria-label="Loading graph analytics">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-[84px]" />)}
         </div>
@@ -39,7 +39,7 @@ export default function OverviewView({ graph, loading, error, onRetry, onScan, o
 
   if (error) {
     return (
-      <Panel>
+      <Panel className="dashboard-view-enter">
         <div className="flex flex-col items-center gap-3 px-6 py-12 text-center">
           <AlertTriangle className="h-6 w-6 text-rose-400" />
           <div>
@@ -56,21 +56,30 @@ export default function OverviewView({ graph, loading, error, onRetry, onScan, o
 
   if (!stats) {
     return (
-      <Panel>
-        <div className="flex flex-col items-center gap-3 px-6 py-12 text-center">
-          <Boxes className="h-6 w-6 text-slate-600" />
-          <div>
-            <p className="text-sm font-medium text-slate-200">No graph data yet</p>
-            <p className="mt-1 max-w-sm text-xs text-slate-500">Scan and index a repository to see its structure, hotspots and relationship breakdown here.</p>
-          </div>
-          <div className="flex gap-2">
-            <button type="button" onClick={onScan} className="rounded-md bg-sky-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-500">Scan a repository</button>
-            <button type="button" onClick={onRetry} className="flex items-center gap-1.5 rounded-md border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800">
-              <RefreshCw className="h-3.5 w-3.5" /> Reload
+      <section className="dashboard-empty-state dashboard-view-enter">
+        <div className="empty-state-copy">
+          <span className="empty-state-kicker"><span /> GET STARTED</span>
+          <h3>Your repository map<br className="hidden sm:block" /> starts here.</h3>
+          <p>Connect a codebase to reveal its architecture, the symbols it contains, and the relationships between them.</p>
+          <div className="empty-state-actions">
+            <button type="button" onClick={onScan} className="empty-state-primary">
+              Connect a repository <ArrowUpRight className="h-4 w-4" />
+            </button>
+            <button type="button" onClick={onRetry} className="empty-state-secondary">
+              <RefreshCw className="h-3.5 w-3.5" /> Refresh data
             </button>
           </div>
         </div>
-      </Panel>
+        <div className="empty-state-art" aria-hidden="true">
+          <div className="empty-state-orbit empty-state-orbit-one" />
+          <div className="empty-state-orbit empty-state-orbit-two" />
+          <div className="empty-state-center"><Network className="h-8 w-8" /></div>
+          <span className="empty-state-node node-one" />
+          <span className="empty-state-node node-two" />
+          <span className="empty-state-node node-three" />
+          <span className="empty-state-node node-four" />
+        </div>
+      </section>
     );
   }
 
@@ -80,7 +89,8 @@ export default function OverviewView({ graph, loading, error, onRetry, onScan, o
   const maxFile = stats.files[0]?.symbols ?? 1;
 
   return (
-    <div className="space-y-4">
+    <div className="dashboard-overview dashboard-view-enter">
+      <p className="overview-section-label">The shape of things</p>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Kpi icon={Boxes} label="Graph nodes" value={stats.nodeCount.toLocaleString()} hint={`${stats.symbolCount.toLocaleString()} symbols`} />
         <Kpi icon={Share2} label="Relationships" value={stats.edgeCount.toLocaleString()} hint={`${stats.avgConnections.toFixed(1)} avg connections per node`} />
@@ -98,6 +108,7 @@ export default function OverviewView({ graph, loading, error, onRetry, onScan, o
         />
       </div>
 
+      <p className="overview-section-label">Patterns worth a closer look</p>
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Panel title="Composition" subtitle="What the graph is made of, by node type">
           <div className="space-y-4 p-4">
